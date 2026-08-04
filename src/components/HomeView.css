@@ -1,0 +1,299 @@
+.home {
+  display: grid;
+  gap: var(--s-7);
+}
+
+.home__head {
+  display: grid;
+  gap: var(--s-4);
+}
+
+.home__title {
+  font-size: var(--step-5);
+  margin-top: var(--s-2);
+}
+
+.home__at {
+  display: inline-block;
+  margin: 0 0.22em;
+  color: var(--accent);
+  font-weight: 400;
+}
+
+.home__sub {
+  font-family: var(--font-body);
+  font-size: var(--step-2);
+  line-height: 1.5;
+  color: var(--ink-soft);
+  max-width: 46ch;
+}
+
+/* Le tableau des 90 minutes. */
+.board {
+  padding: var(--s-5);
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-lg);
+}
+
+.board__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-3);
+  margin-bottom: var(--s-4);
+}
+
+.board__title {
+  font-family: var(--font-display);
+  font-variation-settings: var(--wide);
+  font-size: var(--step-2);
+  font-weight: 600;
+}
+
+.board__note {
+  font-size: var(--step--1);
+  color: var(--ink-faint);
+}
+
+.board__track {
+  display: flex;
+  gap: 4px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  height: 148px;
+}
+
+.board__slot {
+  display: flex;
+  min-width: 0;
+  container-type: inline-size;
+}
+
+.board__block {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: 2px;
+  padding: var(--s-3);
+  border-radius: var(--r-md);
+  background: var(--surface-sunken);
+  text-align: left;
+  overflow: hidden;
+  transition: background 160ms var(--ease), color 160ms var(--ease), transform 160ms var(--ease);
+}
+
+.board__block:hover {
+  background: var(--slab);
+  color: var(--slab-ink);
+  transform: translateY(-2px);
+}
+
+.board__code {
+  position: absolute;
+  top: var(--s-3);
+  left: var(--s-3);
+  font-size: 0.6875rem;
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.board__block:hover .board__code {
+  color: inherit;
+}
+
+.board__label {
+  font-size: var(--step--1);
+  font-weight: 600;
+  line-height: 1.2;
+  hyphens: auto;
+  word-break: break-word;
+}
+
+/* Un bloc de 5 minutes ne peut pas porter de texte : il garde son code seul. */
+@container (max-width: 116px) {
+  .board__range {
+    display: none;
+  }
+}
+
+@container (max-width: 74px) {
+  .board__label {
+    display: none;
+  }
+
+  .board__code {
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+  }
+}
+
+.board__range {
+  font-size: 0.625rem;
+  color: var(--ink-faint);
+  white-space: nowrap;
+}
+
+.board__block:hover .board__range {
+  color: var(--slab-faint);
+}
+
+.board__axis {
+  position: relative;
+  height: 1.2em;
+  margin-top: var(--s-2);
+  font-size: 0.625rem;
+  color: var(--ink-faint);
+}
+
+.board__axis span {
+  position: absolute;
+  transform: translateX(-50%);
+}
+
+.board__axis span:first-child {
+  transform: none;
+}
+
+.board__axis span:last-child {
+  transform: translateX(-100%);
+}
+
+.home__stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 1px;
+  margin: 0;
+  background: var(--rule);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+}
+
+.home__stats > div {
+  display: grid;
+  gap: var(--s-1);
+  padding: var(--s-4);
+  background: var(--surface);
+}
+
+.home__stats dt {
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.home__stats dd {
+  margin: 0;
+  font-size: var(--step-3);
+}
+
+.home__intro {
+  max-width: var(--measure);
+}
+
+.home__intro blockquote {
+  font-family: var(--font-ui);
+}
+
+.home__intro blockquote::before {
+  content: 'le cadre';
+}
+
+.home__parts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--s-3);
+}
+
+.partCard {
+  display: grid;
+  gap: var(--s-2);
+  padding: var(--s-4);
+  text-align: left;
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-lg);
+  transition: border-color 160ms var(--ease), transform 160ms var(--ease);
+}
+
+.partCard:hover {
+  border-color: var(--accent);
+  transform: translateY(-2px);
+}
+
+.partCard__title {
+  font-size: var(--step-1);
+  font-weight: 600;
+}
+
+.partCard__list {
+  font-size: var(--step--1);
+  line-height: 1.4;
+  color: var(--ink-faint);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.home__cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-4);
+  width: 100%;
+  padding: var(--s-4) var(--s-5);
+  background: var(--slab);
+  color: var(--slab-ink);
+  border-radius: var(--r-lg);
+  font-size: var(--step-1);
+  font-weight: 500;
+  transition: transform 160ms var(--ease);
+}
+
+.home__cta:hover {
+  transform: translateY(-2px);
+}
+
+@media (max-width: 720px) {
+  .board__track {
+    height: auto;
+    flex-direction: column;
+  }
+
+  .board__slot {
+    flex: none !important;
+  }
+
+  .board__block {
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+    gap: var(--s-3);
+    padding-left: 3rem;
+    min-height: 46px;
+  }
+
+  .board__code {
+    top: 50%;
+    transform: translateY(-50%);
+  }
+
+  .board__range {
+    margin-left: auto;
+  }
+
+  .board__axis {
+    display: none;
+  }
+}

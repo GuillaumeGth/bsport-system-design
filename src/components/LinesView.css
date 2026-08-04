@@ -1,0 +1,138 @@
+.lines {
+  display: grid;
+  gap: var(--s-6);
+}
+
+.lines__head {
+  display: grid;
+  gap: var(--s-3);
+}
+
+.lines__title {
+  font-size: var(--step-4);
+}
+
+.lines__sub {
+  font-family: var(--font-body);
+  font-size: var(--step-1);
+  line-height: 1.6;
+  color: var(--ink-soft);
+  max-width: 56ch;
+}
+
+.lines__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-4);
+  padding-bottom: var(--s-4);
+  border-bottom: 1px solid var(--rule);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45em;
+  padding: 0.25rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid var(--rule);
+  font-size: var(--step--1);
+  color: var(--ink-soft);
+  transition: border-color 140ms var(--ease), color 140ms var(--ease), background 140ms var(--ease);
+}
+
+.chip .u-mono {
+  font-size: 0.625rem;
+  color: var(--ink-faint);
+}
+
+.chip:hover {
+  border-color: var(--ink-faint);
+  color: var(--ink);
+}
+
+.chip.is-active {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--paper);
+}
+
+.chip.is-active .u-mono {
+  color: inherit;
+  opacity: 0.7;
+}
+
+.lines__list {
+  display: grid;
+  gap: var(--s-3);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* Une phrase à dire est traitée comme un prompteur : bloc inversé. */
+.lineCard {
+  display: grid;
+  gap: var(--s-3);
+  padding: var(--s-4) var(--s-5);
+  background: var(--slab);
+  color: var(--slab-ink);
+  border-radius: var(--r-lg);
+}
+
+.lineCard__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s-3);
+  font-size: 0.6875rem;
+}
+
+.lineCard__meta .u-mono {
+  color: var(--slab-faint);
+  text-transform: lowercase;
+  letter-spacing: 0.04em;
+}
+
+.lineCard__source {
+  color: var(--slab-faint);
+  font-size: 0.6875rem;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+  text-decoration-color: color-mix(in srgb, currentColor 40%, transparent);
+}
+
+.lineCard__source:hover {
+  color: var(--slab-ink);
+}
+
+.lineCard__text {
+  font-size: var(--step-2);
+  line-height: 1.45;
+  text-wrap: pretty;
+}
+
+.lineCard__actions {
+  display: flex;
+  gap: var(--s-2);
+}
+
+.lineCard__action {
+  padding: 0.2rem 0.65rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--slab-faint) 45%, transparent);
+  font-size: var(--step--1);
+  color: var(--slab-faint);
+  transition: color 140ms var(--ease), border-color 140ms var(--ease);
+}
+
+.lineCard__action:hover {
+  color: var(--slab-ink);
+  border-color: var(--slab-ink);
+}

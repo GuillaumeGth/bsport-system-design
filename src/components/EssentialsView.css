@@ -1,0 +1,127 @@
+.essentials {
+  display: grid;
+  gap: var(--s-6);
+  max-width: 62ch;
+}
+
+.essentials__head {
+  display: grid;
+  gap: var(--s-3);
+}
+
+.essentials__title {
+  font-size: var(--step-4);
+}
+
+.essentials__progress {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+.essentials__bar {
+  flex: 1;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--surface-sunken);
+  overflow: hidden;
+}
+
+.essentials__bar span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width 260ms var(--ease);
+}
+
+.essentials__progress .u-mono {
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.essentials__clear {
+  font-size: var(--step--1);
+  color: var(--ink-faint);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.essentials__clear:hover {
+  color: var(--ink);
+}
+
+.essentials__list {
+  display: grid;
+  gap: var(--s-2);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.essential {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: start;
+  gap: var(--s-4);
+  width: 100%;
+  text-align: left;
+  padding: var(--s-4);
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-lg);
+  font-family: var(--font-body);
+  font-size: var(--step-1);
+  line-height: 1.5;
+  transition: border-color 160ms var(--ease), opacity 160ms var(--ease);
+}
+
+.essential:hover {
+  border-color: var(--ink-faint);
+}
+
+.essential__num {
+  font-size: var(--step-1);
+  color: var(--ink-faint);
+  padding-top: 0.15em;
+}
+
+.essential__text strong {
+  font-weight: 600;
+}
+
+.essential__check {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  margin-top: 0.1em;
+  border-radius: 50%;
+  border: 1px solid var(--rule);
+  color: transparent;
+  transition: background 160ms var(--ease), border-color 160ms var(--ease), color 160ms var(--ease);
+}
+
+.essential.is-done {
+  border-color: var(--accent);
+  opacity: 0.62;
+}
+
+.essential.is-done .essential__check {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+
+.essential.is-done .essential__num {
+  color: var(--accent);
+}
+
+.essentials__closing {
+  font-family: var(--font-body);
+  font-size: var(--step-2);
+  line-height: 1.5;
+  color: var(--ink-soft);
+  padding-top: var(--s-5);
+  border-top: 1px solid var(--rule);
+  text-wrap: pretty;
+}

@@ -1,0 +1,74 @@
+.clock {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: 2px 2px 2px 0;
+  border: 1px solid var(--rule);
+  border-radius: var(--r-md);
+  transition: border-color 160ms var(--ease), background 160ms var(--ease);
+}
+
+.clock.is-armed {
+  border-color: var(--ink);
+  background: var(--slab);
+  color: var(--slab-ink);
+}
+
+.clock.is-over {
+  border-color: var(--accent);
+}
+
+.clock__toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: 0.3rem 0.5rem;
+  border-radius: var(--r-sm);
+  color: inherit;
+}
+
+.clock:not(.is-armed) .clock__toggle {
+  color: var(--ink-soft);
+}
+
+.clock:not(.is-armed) .clock__toggle:hover {
+  color: var(--ink);
+}
+
+.clock__time {
+  font-size: var(--step--1);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.clock__phase {
+  font-size: 0.6875rem;
+  letter-spacing: 0.04em;
+  text-transform: lowercase;
+  color: var(--slab-faint);
+  padding-right: var(--s-1);
+  white-space: nowrap;
+}
+
+.clock.is-over .clock__phase {
+  color: var(--accent);
+}
+
+.clock__reset {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--r-sm);
+  color: var(--slab-faint);
+}
+
+.clock__reset:hover {
+  color: var(--slab-ink);
+}
+
+@media (max-width: 720px) {
+  .clock__phase {
+    display: none;
+  }
+}

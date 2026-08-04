@@ -1,0 +1,123 @@
+.section__head {
+  display: grid;
+  gap: var(--s-4);
+  padding-bottom: var(--s-5);
+  margin-bottom: var(--s-6);
+  border-bottom: 1px solid var(--rule);
+}
+
+.section__marks {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-4);
+}
+
+/* Le numéro de section : repère de position dans un document long. */
+.section__num {
+  font-size: var(--step-4);
+  line-height: 0.85;
+  color: var(--rule);
+  font-weight: 700;
+}
+
+.section__meta {
+  display: grid;
+  gap: var(--s-2);
+  padding-top: 0.15em;
+}
+
+.section__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  padding: 0.16rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid var(--rule);
+  font-size: var(--step--1);
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+
+.badge--time {
+  border-color: transparent;
+  background: var(--accent-wash);
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.badge--time .u-mono {
+  font-size: 0.625rem;
+  opacity: 0.75;
+}
+
+.section__title {
+  font-size: var(--step-4);
+  max-width: 22ch;
+}
+
+.section__toc {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+
+.section__tocItem {
+  padding: 0.2rem 0.6rem;
+  border-radius: var(--r-md);
+  background: var(--surface-sunken);
+  color: var(--ink-soft);
+  font-size: var(--step--1);
+  text-decoration: none;
+  transition: background 140ms var(--ease), color 140ms var(--ease);
+}
+
+.section__tocItem:hover {
+  background: var(--accent-wash);
+  color: var(--accent);
+}
+
+.section__nav {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--s-3);
+  margin-top: var(--s-8);
+  padding-top: var(--s-5);
+  border-top: 1px solid var(--rule);
+}
+
+.section__step {
+  display: grid;
+  gap: var(--s-1);
+  padding: var(--s-4);
+  text-align: left;
+  border: 1px solid var(--rule);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  font-size: var(--step-0);
+  font-weight: 500;
+  transition: border-color 160ms var(--ease);
+}
+
+.section__step:hover {
+  border-color: var(--accent);
+}
+
+.section__step--next {
+  text-align: right;
+}
+
+@media (max-width: 640px) {
+  .section__nav {
+    grid-template-columns: 1fr;
+  }
+
+  .section__step--next {
+    text-align: left;
+  }
+}

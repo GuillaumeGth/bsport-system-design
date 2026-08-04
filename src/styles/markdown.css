@@ -1,0 +1,182 @@
+/* Rendu du document. Le corps est en serif pour la lecture longue ;
+   tout ce qui est repère, donnée ou structure passe en grotesque ou en mono. */
+.md {
+  font-family: var(--font-body);
+  font-size: var(--step-1);
+  line-height: 1.7;
+  color: var(--ink);
+  max-width: var(--measure);
+}
+
+.md > * + * {
+  margin-top: var(--s-4);
+}
+
+.md p {
+  text-wrap: pretty;
+}
+
+.md .lede {
+  font-size: var(--step-2);
+  line-height: 1.5;
+  color: var(--ink);
+  margin-bottom: var(--s-6);
+}
+
+.md h3 {
+  font-family: var(--font-display);
+  font-variation-settings: var(--wide);
+  font-weight: 600;
+  font-size: var(--step-2);
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  margin-top: var(--s-7);
+  padding-top: var(--s-4);
+  border-top: 1px solid var(--rule);
+  scroll-margin-top: 6rem;
+}
+
+.md h4 {
+  font-family: var(--font-ui);
+  font-size: var(--step-1);
+  font-weight: 600;
+  margin-top: var(--s-5);
+}
+
+.md strong {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.md em {
+  font-style: italic;
+}
+
+.md code {
+  font-family: var(--font-mono);
+  font-size: 0.86em;
+  background: var(--surface-sunken);
+  border-radius: var(--r-sm);
+  padding: 0.1em 0.34em;
+}
+
+/* Diagrammes ASCII et machines à états : monospace, jamais compressés. */
+.md pre {
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  line-height: 1.5;
+  background: var(--slab);
+  color: var(--slab-ink);
+  padding: var(--s-5);
+  border-radius: var(--r-lg);
+  overflow-x: auto;
+  margin: var(--s-6) 0;
+}
+
+.md pre code {
+  background: none;
+  padding: 0;
+  font-size: inherit;
+  color: inherit;
+}
+
+/* Les phrases à prononcer : bloc inversé, comme un prompteur. */
+.md blockquote {
+  position: relative;
+  background: var(--slab);
+  color: var(--slab-ink);
+  font-family: var(--font-ui);
+  font-size: var(--step-1);
+  font-style: normal;
+  line-height: 1.5;
+  padding: var(--s-6) var(--s-5) var(--s-5);
+  border-radius: var(--r-lg);
+  margin: var(--s-6) 0;
+}
+
+.md blockquote::before {
+  content: 'à dire';
+  position: absolute;
+  top: var(--s-3);
+  left: var(--s-5);
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--slab-faint);
+}
+
+.md blockquote em {
+  font-style: normal;
+}
+
+.md blockquote strong {
+  color: inherit;
+}
+
+.md blockquote p + p {
+  margin-top: var(--s-3);
+}
+
+.md ul,
+.md ol {
+  padding-left: 1.3em;
+}
+
+.md li + li {
+  margin-top: var(--s-2);
+}
+
+.md li::marker {
+  color: var(--ink-faint);
+}
+
+.md hr {
+  border: none;
+  border-top: 1px solid var(--rule);
+  margin: var(--s-7) 0;
+}
+
+/* Les tableaux d'arbitrage portent beaucoup de sens : lisibles avant tout. */
+.md-scroll {
+  overflow-x: auto;
+  margin: var(--s-6) 0;
+  border: 1px solid var(--rule);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+}
+
+.md table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-ui);
+  font-size: var(--step-0);
+  line-height: 1.45;
+}
+
+.md th,
+.md td {
+  text-align: left;
+  padding: var(--s-3) var(--s-4);
+  border-bottom: 1px solid var(--rule-soft);
+  vertical-align: top;
+}
+
+.md th {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  font-weight: 500;
+  background: var(--surface-sunken);
+  white-space: nowrap;
+}
+
+.md tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.md td code {
+  white-space: nowrap;
+}

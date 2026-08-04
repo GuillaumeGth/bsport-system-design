@@ -1,0 +1,119 @@
+.palette {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  justify-items: center;
+  align-items: start;
+  padding: clamp(var(--s-5), 10vh, 7rem) var(--s-4) var(--s-4);
+}
+
+.palette__scrim {
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--ink) 42%, transparent);
+  backdrop-filter: blur(2px);
+}
+
+.palette__box {
+  position: relative;
+  width: min(660px, 100%);
+  max-height: min(70vh, 620px);
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+}
+
+.palette__field {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-4);
+  border-bottom: 1px solid var(--rule);
+  color: var(--ink-faint);
+}
+
+.palette__field input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: none;
+  outline: none;
+  font: inherit;
+  font-size: var(--step-1);
+  color: var(--ink);
+}
+
+.palette__field input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.palette__field kbd {
+  padding: 0.1rem 0.35rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--r-sm);
+  font-size: 0.625rem;
+}
+
+.palette__results {
+  list-style: none;
+  margin: 0;
+  padding: var(--s-2);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.palette__empty {
+  padding: var(--s-5);
+  color: var(--ink-faint);
+  font-size: var(--step-0);
+}
+
+.palette__hit {
+  display: grid;
+  gap: 3px;
+  width: 100%;
+  text-align: left;
+  padding: var(--s-3);
+  border-radius: var(--r-md);
+}
+
+.palette__hit.is-cursor {
+  background: var(--accent-wash);
+}
+
+.palette__context {
+  font-size: 0.625rem;
+  color: var(--ink-faint);
+  text-transform: lowercase;
+  letter-spacing: 0.04em;
+}
+
+.palette__hit.is-cursor .palette__context {
+  color: var(--accent);
+}
+
+.palette__title {
+  font-size: var(--step-0);
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.palette__title.is-phrase {
+  font-style: italic;
+  font-weight: 400;
+}
+
+.palette__excerpt {
+  font-size: var(--step--1);
+  line-height: 1.4;
+  color: var(--ink-faint);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}

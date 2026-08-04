@@ -1,0 +1,172 @@
+.rail {
+  position: sticky;
+  top: 0;
+  height: 100dvh;
+  width: var(--rail-w);
+  flex: 0 0 var(--rail-w);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-3) 0;
+  background: var(--surface);
+  border-right: 1px solid var(--rule);
+  z-index: 30;
+}
+
+.rail__cap {
+  font-size: 0.625rem;
+  color: var(--ink-faint);
+}
+
+.rail__track {
+  position: relative;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  flex: 1;
+  width: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.rail__slot {
+  display: flex;
+  min-height: 0;
+}
+
+.rail__seg {
+  position: relative;
+  flex: 1;
+  width: 100%;
+  border-radius: 999px;
+  background: var(--surface-sunken);
+  display: grid;
+  place-items: center;
+  transition: background 160ms var(--ease), color 160ms var(--ease);
+  color: var(--ink-faint);
+}
+
+.rail__seg:hover {
+  background: var(--accent-wash);
+  color: var(--accent);
+}
+
+.rail__seg.is-active {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.rail__code {
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  font-weight: 500;
+  line-height: 1;
+}
+
+/* Infobulle : le rail reste muet tant qu'on ne le survole pas. */
+.rail__tip {
+  position: absolute;
+  left: calc(100% + 10px);
+  top: 50%;
+  transform: translateY(-50%) translateX(-4px);
+  display: grid;
+  gap: 1px;
+  padding: var(--s-2) var(--s-3);
+  background: var(--slab);
+  color: var(--slab-ink);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-md);
+  white-space: nowrap;
+  text-align: left;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 140ms var(--ease), transform 140ms var(--ease);
+}
+
+.rail__tip strong {
+  font-size: var(--step-0);
+  font-weight: 600;
+}
+
+.rail__tip .u-mono {
+  font-size: 0.6875rem;
+  color: var(--slab-faint);
+}
+
+.rail__seg:hover .rail__tip,
+.rail__seg:focus-visible .rail__tip {
+  opacity: 1;
+  transform: translateY(-50%) translateX(0);
+}
+
+/* Curseur du chrono de répétition. */
+.rail__playhead {
+  position: absolute;
+  left: -10px;
+  right: -10px;
+  top: var(--playhead);
+  height: 2px;
+  background: var(--ink);
+  border-radius: 2px;
+  transition: top 900ms linear;
+}
+
+.rail__playhead::before {
+  content: '';
+  position: absolute;
+  left: -4px;
+  top: -3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ink);
+}
+
+/* En dessous de 900px le rail bascule à l'horizontale sous l'en-tête. */
+@media (max-width: 900px) {
+  .rail {
+    position: sticky;
+    top: var(--topbar-h);
+    height: auto;
+    width: 100%;
+    flex: none;
+    flex-direction: row;
+    padding: var(--s-2) var(--s-4);
+    border-right: none;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .rail__track {
+    width: auto;
+    height: 20px;
+    flex-direction: row;
+  }
+
+  .rail__playhead {
+    left: var(--playhead);
+    right: auto;
+    top: -6px;
+    bottom: -6px;
+    height: auto;
+    width: 2px;
+    transition: left 900ms linear;
+  }
+
+  .rail__playhead::before {
+    left: -3px;
+    top: -4px;
+  }
+
+  .rail__tip {
+    left: 50%;
+    top: calc(100% + 8px);
+    transform: translateX(-50%) translateY(-4px);
+  }
+
+  .rail__seg:hover .rail__tip,
+  .rail__seg:focus-visible .rail__tip {
+    transform: translateX(-50%) translateY(0);
+  }
+}

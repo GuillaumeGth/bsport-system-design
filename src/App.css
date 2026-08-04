@@ -1,0 +1,46 @@
+.app {
+  --topbar-h: 52px;
+  min-height: 100dvh;
+}
+
+.app__skip {
+  position: absolute;
+  left: var(--s-4);
+  top: -100px;
+  z-index: 100;
+  padding: var(--s-2) var(--s-4);
+  background: var(--slab);
+  color: var(--slab-ink);
+  border-radius: var(--r-md);
+  text-decoration: none;
+  transition: top 160ms var(--ease);
+}
+
+.app__skip:focus {
+  top: var(--s-2);
+}
+
+.app__body {
+  display: flex;
+  align-items: flex-start;
+}
+
+.app__main {
+  flex: 1;
+  min-width: 0;
+  padding: var(--s-7) clamp(var(--s-4), 4vw, var(--s-8)) var(--s-8);
+}
+
+.app__main > * {
+  max-width: 78ch;
+}
+
+@media (max-width: 900px) {
+  .app__body {
+    display: block;
+  }
+
+  .app__main {
+    padding-top: var(--s-6);
+  }
+}

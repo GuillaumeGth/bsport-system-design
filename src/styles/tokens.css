@@ -1,0 +1,130 @@
+/* Palette : une seule couleur d'accent (ultramarine) pour tout ce qui relève
+   du temps et de la structure. Les phrases à dire à voix haute sont traitées
+   en inversion, pas avec une seconde teinte. */
+:root {
+  color-scheme: light;
+
+  --paper: #f2f3f6;
+  --surface: #ffffff;
+  --surface-sunken: #e8eaef;
+  --ink: #16181d;
+  --ink-soft: #4a4f5a;
+  --ink-faint: #767c88;
+  --rule: #d9dce3;
+  --rule-soft: #e6e9ee;
+  --accent: #2438e0;
+  --accent-ink: #ffffff;
+  --accent-wash: #e7e9fc;
+  --slab: #16181d;
+  --slab-ink: #f4f5f8;
+  --slab-faint: #9aa0ad;
+
+  --shadow-sm: 0 1px 2px rgb(22 24 29 / 0.06), 0 1px 1px rgb(22 24 29 / 0.04);
+  --shadow-md: 0 8px 24px -12px rgb(22 24 29 / 0.24);
+  --shadow-lg: 0 24px 64px -24px rgb(22 24 29 / 0.34);
+
+  --font-display: 'Archivo', 'Helvetica Neue', sans-serif;
+  --font-body: 'Newsreader', Georgia, serif;
+  --font-ui: 'Instrument Sans', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  --wide: 'wdth' 112;
+
+  --step--1: 0.8125rem;
+  --step-0: 0.9375rem;
+  --step-1: 1.0625rem;
+  --step-2: 1.375rem;
+  --step-3: 1.75rem;
+  --step-4: clamp(2rem, 1.4rem + 2.4vw, 3rem);
+  --step-5: clamp(2.5rem, 1.2rem + 5vw, 4.5rem);
+
+  --s-1: 0.25rem;
+  --s-2: 0.5rem;
+  --s-3: 0.75rem;
+  --s-4: 1rem;
+  --s-5: 1.5rem;
+  --s-6: 2rem;
+  --s-7: 3rem;
+  --s-8: 4rem;
+
+  --r-sm: 4px;
+  --r-md: 8px;
+  --r-lg: 14px;
+
+  --rail-w: 56px;
+  --nav-w: 300px;
+  --measure: 68ch;
+
+  --ease: cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+
+    --paper: #0e1014;
+    --surface: #16191f;
+    --surface-sunken: #1d2129;
+    --ink: #eceef2;
+    --ink-soft: #b0b6c1;
+    --ink-faint: #7e8592;
+    --rule: #2b303a;
+    --rule-soft: #232830;
+    --accent: #8a95ff;
+    --accent-ink: #10121a;
+    --accent-wash: #1f2440;
+    --slab: #eceef2;
+    --slab-ink: #14161b;
+    --slab-faint: #5b606c;
+
+    --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
+    --shadow-md: 0 8px 24px -12px rgb(0 0 0 / 0.6);
+    --shadow-lg: 0 24px 64px -24px rgb(0 0 0 / 0.8);
+  }
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  --paper: #f2f3f6;
+  --surface: #ffffff;
+  --surface-sunken: #e8eaef;
+  --ink: #16181d;
+  --ink-soft: #4a4f5a;
+  --ink-faint: #767c88;
+  --rule: #d9dce3;
+  --rule-soft: #e6e9ee;
+  --accent: #2438e0;
+  --accent-ink: #ffffff;
+  --accent-wash: #e7e9fc;
+  --slab: #16181d;
+  --slab-ink: #f4f5f8;
+  --slab-faint: #9aa0ad;
+
+  --shadow-sm: 0 1px 2px rgb(22 24 29 / 0.06), 0 1px 1px rgb(22 24 29 / 0.04);
+  --shadow-md: 0 8px 24px -12px rgb(22 24 29 / 0.24);
+  --shadow-lg: 0 24px 64px -24px rgb(22 24 29 / 0.34);
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --paper: #0e1014;
+  --surface: #16191f;
+  --surface-sunken: #1d2129;
+  --ink: #eceef2;
+  --ink-soft: #b0b6c1;
+  --ink-faint: #7e8592;
+  --rule: #2b303a;
+  --rule-soft: #232830;
+  --accent: #8a95ff;
+  --accent-ink: #10121a;
+  --accent-wash: #1f2440;
+  --slab: #eceef2;
+  --slab-ink: #14161b;
+  --slab-faint: #5b606c;
+
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow-md: 0 8px 24px -12px rgb(0 0 0 / 0.6);
+  --shadow-lg: 0 24px 64px -24px rgb(0 0 0 / 0.8);
+}
