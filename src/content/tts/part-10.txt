@@ -1,0 +1,23 @@
+My answer is a document cache with invalidation discipline. Concretely, structure the query keys hierarchically, sessions then studio then date, so I can invalidate by prefix after a mutation.
+
+And if that pain grew, if the app became genuinely graph-shaped and stale copies started causing real bugs, that's precisely where GraphQL with Apollo would earn its complexity. Its normalized cache is the best thing about it. But I wouldn't buy that upfront.
+
+One more point on caching: freshness per data type, because a single global value is always a bad compromise. The floor plan can be cached for hours, it only changes if the room is rearranged. Disciplines and instructors, about an hour, they're near-static. The structure of the schedule, a few minutes. Availability, zero, with a real-time channel on top, because it changes by the second. And my profile and my credits get invalidated after a mutation, because they change when I act.
+
+[medium pause] Stale time per data type, not one global value. Too short and I hammer the API. Too long and I show phantom spots.
+
+[long pause] Now the states of the interface, and I want to distinguish two levels, because I think most designs only see one.
+
+The technical level applies to any remote data. Idle, nothing requested yet. Initial loading, which should be a skeleton shaped like the content, not a centred spinner. Success, the content. Empty, no classes on this day, plus an action, and that is not an error. Error, a clear message plus retry, distinguishing network from server. Refetching, which shows the content plus a discreet indicator. Optimistic, showing the anticipated value with an in-progress visual state. And offline, with a banner, the cache, and queued actions.
+
+Two things at that level separate a good implementation from a mediocre one.
+
+Never confuse empty with error. An empty schedule on a Sunday isn't an outage. Displaying something went wrong when there simply are no classes generates support tickets and anxiety for nothing.
+
+And never fall back to a skeleton on a refresh. That is literally the difference between an application that feels slow and one that feels instant. If you re-skeleton on every background revalidation, the screen flickers and the user perceives every interaction as a reload. The distinction between initial load and background refresh is a state architecture decision, not a cosmetic detail.
+
+Then there's the business level, on a single class card. Bookable shows spots left and a solid call to action. Almost full shows a two spots left badge, which is a conversion lever. Full offers the waitlist. Waitlisted by me shows you're third in line, with the option to leave. Booked by me shows a confirmed badge with cancel or view. Pending disables the button and shows an indicator. Ineligible says not included in your pack, with an upgrade or purchase action. Booking not open says opens on the third of August at nine, with a notify me action. Cancellation locked says free until twelve hours before, and cancelling shows a warning. Cancelled by studio shows the class struck through with a reason. And past is greyed out.
+
+The one I want to hammer is ineligible. It's the case most people forget, because they model availability and stop there. But this class is full, and your pack doesn't cover this class, are two completely different failures. The first one offers a waitlist. The second one is a sales opportunity, because the member wants to come, has money, and is just missing the right pack.
+
+[medium pause] If I collapse those two into one you-can't-book-this state, I've turned a sales opportunity into a dead end. And that's the studio's revenue, not just a user experience detail.

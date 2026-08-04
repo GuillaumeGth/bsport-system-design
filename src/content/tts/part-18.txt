@@ -1,0 +1,27 @@
+And I'd measure in real user monitoring, at the seventy-fifth and ninety-fifth percentile rather than averages. A perfect Lighthouse score on a wired MacBook tells me nothing about a mid-range Android on mobile data in a basement, which is exactly our user.
+
+On the bundle: route-based splitting as a baseline, plus lazy loading the big pieces that are rarely reached. The payment flow, the seat selector, which is only useful for some classes, and the back-office. The refinement I like is preloading on intent: when the user hovers the Book button, we load the modal's chunk. The code arrives before the click, and the latency is never visible.
+
+The trap is that too much splitting produces a waterfall of chunk requests that costs more than the monolith you avoided. And every lazy boundary needs an error boundary with a retry, otherwise a connection that drops while a chunk is loading breaks the application.
+
+[long pause] Now, time zones, which I think is the most treacherous subject in a scheduling application.
+
+The principle is the studio's local time, always. A class at six in the evening in Barcelona is at six in the evening for everyone. A Paris member browsing should see six. It's a property of the place, not of the observer.
+
+The technical corollary: instants travel in UTC, the studio's timezone travels with the data, rendering happens in that timezone. The device's timezone is only used for relative displays, in two hours, or to warn a member who's travelling.
+
+The traps are nasty. Daylight saving. A recurring class at six local time stays at six after the clocks change, even though its UTC instant moves. So recurrence is defined in local time, not in UTC. Generating occurrences by adding one hundred and sixty-eight hours to a UTC instant produces classes that are off by an hour, twice a year. It's a classic bug, it's embarrassing, and it's hard to diagnose because it only shows up twice a year.
+
+Then there's the hour that doesn't exist, and the hour that exists twice. Going into summer time, two thirty in the morning doesn't exist. Coming out of it, it happens twice. A class scheduled at that moment needs an explicit rule.
+
+And server rendering: the server must not format in its own timezone, otherwise the rendered HTML and the hydration diverge.
+
+On tooling, the Temporal API is designed for this and makes these cases explicit. In the meantime, date-fns-tz or Luxon. I'd avoid hand-manipulating native Date objects for timezone logic.
+
+[medium pause] To put it in one sentence: generating recurring occurrences by adding one hundred and sixty-eight hours in UTC silently shifts every class by an hour, twice a year. Recurrence is defined in local time. That's the one thing I'd make sure is right from day one, because it's cheap now and it's a support nightmare later.
+
+On internationalization. I'd use ICU message format rather than flat keys, because it handles plurals properly. Russian has several forms, Arabic has six. And it handles gender. A naive interpolation like n spots remaining breaks in the singular and in half the languages we'd support.
+
+Formatting goes through the native Intl API for dates, numbers, currencies and lists, rather than hand-rolled tables.
+
+Two things I'd build in early because they're free now and expensive later: CSS logical properties, margin-inline-start rather than margin-left, in case right-to-left ever arrives. And testing the layout in a verbose language rather than English. German is often thirty percent longer, and a button sized around French text breaks.

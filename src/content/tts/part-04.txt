@@ -1,0 +1,17 @@
+Related to that: composition rather than prop accumulation. A class card with twenty-five boolean props is an alarm signal. It means the component is trying to be every variant at once. The answer is composition, sub-components passed as children, or compound components, rather than one flag per variation.
+
+This is somewhere my experience speaks directly. At Ivalua I built a component library consumed by several teams, with a configuration engine that let people customize without writing code. The problem I was solving, how does a component stay stable while remaining extensible by third parties, is exactly the problem here, where every studio wants its own appearance.
+
+If you want the detail on that, the axes that mattered were these. Contracts: defining what's guaranteed stable versus what can move, so the core can evolve without breaking consumers. Extension points, declared explicitly, rather than letting teams patch the inside of components. That's the difference between designed extensibility and extensibility you suffer. Versioning and migration, which is the real problem of an internal library: how do you evolve a component used by a dozen teams without blocking everyone, and without freezing it forever. And developer experience. The configuration engine let non-developers customize, which is API design for humans, and that's harder than API design for machines.
+
+Last point on the breakdown, and it's the one that connects structure to performance: the re-render boundary. When a real-time event says session forty-two now has three spots left, it should re-render the card for session forty-two, and not the other forty. You don't get that by adding memoization afterwards, you get it from structure. Each card subscribes to its own slice of cache, rather than receiving a global array as props.
+
+[medium pause] I'd state that as a principle. The first lever on re-renders isn't memoization, it's state structure. Colocating state, splitting contexts, letting each card subscribe to its own slice. Memoization is what you add after you've measured, not what you sprinkle everywhere upfront.
+
+[long pause] Let me move to the data. I'm not designing your database, but I need to know what I'm talking about in order to negotiate the API contract, and I think that's the difference between a frontend engineer and someone who just consumes endpoints.
+
+I'd cut the domain into four contexts. Catalog holds studio, location, room, discipline and instructor. That's who, what, and where. Scheduling holds the class template, the session and the seat. That's when. Booking holds the member, the booking and the waitlist entry. That's who's coming. And billing holds memberships, packs, orders and payments. That's who pays.
+
+[medium pause] These map to bounded contexts, and they're also the natural seams of the API. The reason it matters to me as a frontend engineer is that a screen usually spans several of them. The schedule screen needs catalog, scheduling and billing at once, and that tension is exactly where waterfalls and over-fetching come from.
+
+Starting with catalog. The studio entity carries branding, timezone, currency, default locale, and the booking policies: how far in advance bookings open, how late you can cancel for free, what the no-show penalty is.

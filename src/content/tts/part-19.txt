@@ -1,0 +1,27 @@
+And one case worth deciding consciously: class descriptions are entered by the studios, so they aren't translated. What does a member who doesn't speak that language see? Often the answer is nothing special, but I'd rather decide that than discover it in production.
+
+[long pause] On security. Token storage first. Local storage is trivial but it's readable from JavaScript, so it's exfiltratable by any cross-site scripting, including one that comes from a compromised dependency. An httpOnly cookie is inaccessible to JavaScript. The best combination is the access token in memory and the refresh token in an httpOnly cookie, with rotation and reuse detection.
+
+[medium pause] There's a nuance there that I think matters more than the answer. People often say if you have cross-site scripting you've already lost. That's a half-truth. HttpOnly doesn't make cross-site scripting harmless, an attacker can still act inside the session from the page. But it stops them exfiltrating a token to use elsewhere and later, which changes the blast radius and the duration of the compromise. It's defence in depth, not a fix.
+
+In this product specifically, class descriptions are entered by studios, so there's a real injection surface. Systematic sanitization, extreme caution with anything that sets raw HTML, and a strict content security policy.
+
+And multi-tenancy is a security subject as well, which is the point I'd least want to miss: every cache key has to include the studio identifier. Forgetting it doesn't produce a UX bug, it leaks one studio's data into another studio's application. In a business to business to consumer SaaS, that's a major incident.
+
+On payment, card fields stay inside the provider's hosted inputs, so the data never touches my state or my PCI scope.
+
+On accessibility, the scope I'd commit to is WCAG double-A on the critical journeys: browse, book, cancel, pay. Automatable tests in continuous integration, plus a manual audit on those journeys.
+
+Concretely on this screen: focus management in the modal, trapping it and then restoring it to the trigger. The seat selector, which is the hardest piece, as I said. Live regions to announce availability changes, used sparingly, because otherwise the screen reader becomes unusable. Contrast on the tenant theming. And adequate touch target sizes.
+
+[medium pause] The argument I'd use in a planning meeting isn't the moral one. Retrofitting accessibility costs several times more than building it in, because it touches DOM structure, semantics and focus order, not styling. It's a cost argument as much as an ethical one. And on a wellness product, the affected population is overrepresented, not marginal.
+
+[long pause] On observability and debugging, I'd think about it in four layers.
+
+Errors: tracking with context, tenant, route, version, and source maps, without which minified stack traces are useless.
+
+Real performance: real user monitoring on actual devices, segmented by device type and network, read at the seventy-fifth and ninety-fifth percentile rather than the average. An average hides exactly the users who are suffering.
+
+Traces: a trace identifier propagated from the click all the way to the backend. That lets you follow a failed booking end to end, and it costs one header. It's the debugging lever that changes production life the most.
+
+And business metrics, which are the most important and the most often forgotten.

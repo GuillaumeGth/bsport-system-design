@@ -1,0 +1,29 @@
+[medium pause] And that's exactly why it's a frontend responsibility. The key is tied to the user's intention, not to the HTTP request. Only the client knows that this retry is a continuation of the same click. The server can't infer it.
+
+That covers three scenarios at once: the impatient double tap, the automatic retry after a timeout, and resynchronizing an action that was queued offline an hour ago.
+
+There's a subtler question, which is when to regenerate the key. If the user gets session full, joins the waitlist, then a spot frees up and they book again, that's a new intention, so it's a new key. Reusing the old one would make the server replay the old failure. The rule is one key per intention, and a new intention every time the user makes a fresh decision.
+
+And a scoping corollary: the key has to cover the booking and its associated payment together. Otherwise you've protected against a double booking but not against a double charge.
+
+On retries, what to retry and what never to retry.
+
+A timeout or a network error: yes, with backoff and jitter, because it's transient and the outcome is unknown. Server errors in the five hundreds: yes, bounded, they're probably transient. A rate limit response: yes, respecting the retry-after header, because the server told you what to do. A business error in the four hundreds: no, retrying changes nothing. An unauthorized response: no, that's a token refresh followed by a replay, which is re-authentication, not a retry. And any mutation without an idempotency key: no, because you'd be generating duplicates.
+
+On the parameters. Exponential backoff, one second, two, four, avoids hammering a server that's already struggling. Jitter, meaning randomness added to the delay, is essential and frequently forgotten. Without it, every client retries at the same moment and finishes off the server exactly as it starts recovering. Then a bound, three attempts, after which you hand control back to the user with an explicit button. And a timeout on every attempt, because a network call without a timeout is a bug waiting to happen.
+
+[medium pause] The link between the two topics is the thing I'd state explicitly: retries and idempotency aren't two topics, they're one. I only auto-retry operations that are idempotent. A silent retry on a non-idempotent mutation is a duplicate generator.
+
+There's also a user experience point. Don't retry silently for ten seconds while the user stares at an indicator with no explanation. After a couple of seconds, say what's happening.
+
+And on preventing double submission, I'd describe it as four layers. The interface disables the button, which is necessary and very insufficient. The client deduplicates in-flight mutations. The protocol carries the idempotency key, and that's the real protection. And the server enforces a uniqueness constraint in the database, which is the ultimate safety net.
+
+You want all four, but only layers three and four are guarantees. The first two are comfort.
+
+[medium pause] Disabling the button is user experience, not correctness. Two tabs, a direct API call, or an offline resync walk straight past it. The actual guarantee is the idempotency key plus a server-side uniqueness constraint. I can make the happy path feel instant. Correctness has to live server-side.
+
+[long pause] Let me move on to real time.
+
+On transport, there are three options. Polling, where the client asks. Server-sent events, which is server to client. And WebSockets, which are bidirectional.
+
+Polling is trivial, needs no infrastructure, is cacheable, and degrades gracefully. But latency equals the interval, and the vast majority of requests come back saying nothing changed.

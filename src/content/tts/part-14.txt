@@ -1,0 +1,25 @@
+Server-sent events is a stream pushed over a single HTTP connection held open. Three arguments in its favour. It's ordinary HTTP, so it goes through proxies and firewalls with no configuration. Reconnection is automatic and built in, with a last-event-ID header that lets the server replay the events you missed. And the need here is purely one-directional. Its limits: one-directional, text only, and a connection limit I'll come to.
+
+WebSockets are bidirectional and binary, with the lowest latency. But they're stateful, so load balancing becomes sticky, and reconnection, heartbeats and recovery after a drop are all on you. You pay for bidirectionality even if you never use it.
+
+The criterion is whether the client needs to emit continuously.
+
+[medium pause] For live availability, server-sent events. The need is purely server-to-client, it's plain HTTP, and the automatic reconnect with last-event-ID means the server can replay what I missed. With WebSockets I'd write all of that myself. I'd only reach for WebSockets where the interaction is genuinely bidirectional, like shared seat selection.
+
+If you ask me why not WebSockets everywhere: because you'd be paying for a bidirectional channel, stateful infrastructure and your own reconnection logic to serve a one-directional need. The right transport is the simplest one that satisfies the requirement.
+
+One technical detail I'd flag, because it bites people. Server-sent events work on any HTTP version. It's not tied to one, it's just a text event stream response held open, available since HTML five. What changes with the version is the limit on concurrent connections per domain.
+
+On HTTP one point one, the browser caps at roughly six connections per domain. A server-sent events connection stays open permanently. Several tabs on your application means several streams, and the budget is saturated, so every other request queues up behind them. That bug is genuinely confusing to diagnose, because the report you get is the app freezes when I have three tabs open, which sounds like nothing.
+
+On HTTP two and three, requests are multiplexed over a single TCP connection, with around a hundred concurrent streams, configurable. The problem disappears.
+
+[medium pause] So: server-sent events work on any HTTP version, but I'd want HTTP two, otherwise the six-connections-per-domain cap can starve every other request when a few tabs each hold an open stream.
+
+Two nuances if you want to push on it. The limit is browser-side, not server-side. On the server, the cost is the number of long-lived connections to hold, which pushes you toward an asynchronous backend. And there is a workaround even on HTTP one point one: share a single stream across all tabs through a shared worker that rebroadcasts. I'd only build that if the problem actually showed up, otherwise it's over-engineering.
+
+On the payload, delta or snapshot. A full snapshot of the session is simple and idempotent, but heavy if it's repeated often. A delta is tiny, but it assumes you received every previous one, in order.
+
+My answer is deltas plus a monotonic version number. The event carries the session identifier, a version, and the list of changes.
+
+The version number does three things. It lets me reject an out-of-order event: if I receive version one hundred and seventeen after one hundred and eighteen, I ignore it. It lets me detect a gap: if I'm at one hundred and fifteen and I receive one hundred and eighteen, I've missed events, so I do a full resynchronization rather than patching blindly onto an incomplete base. And it lets me ignore an event I've already applied.
