@@ -1,0 +1,578 @@
+Let me structure this. I'll spend a few minutes clarifying requirements and assumptions, then sketch a high-level architecture, go into the data model and the API contract, and then deep-dive on whichever parts you find most interesting. I suspect the booking flow and real-time availability. Does that work for you?
+
+Good. Before I design anything, I want to clarify the problem and state my assumptions out loud, because those assumptions are the inputs to every decision I make afterwards. I'll ask a handful of questions, and for each one I'll tell you why I'm asking, because the answer changes something specific in the design.
+
+First, which surface are we talking about? The branded member app, or the studio back-office? I'm asking because the constraints really aren't the same. One is consumer-facing, mobile-first, used in short bursts by someone standing in a corridor. The other is a working tool someone has open on a desktop all day. If you have no preference, I'll assume the member app, because it's the core of the product and it's the richer case.
+
+Second, which journey exactly? Browsing a schedule, booking, cancelling, joining a waitlist, choosing a spot, buying a pack, paying. Each of those adds a dimension. If it's my call, I'd take browse, book and cancel as the core, and treat the waitlist and seat selection as refinements I come back to once the base is solid. That gives us a first version and a set of deep-dives in one sentence.
+
+Third, is a member attached to one studio, or several? That decides whether the tenant context is fixed, one branded app for one studio, or variable, more like a marketplace. The consequences on caching and navigation are significant, so I'd rather know now than retrofit it later.
+
+Fourth, are the schedules public and indexable? A studio wants to be found on Google when someone searches for pilates near Bastille. If the answer is yes, I have a search engine requirement, and that constrains my rendering strategy.
+
+Now the non-functional side, which is what actually drives the architecture.
+
+Does availability have to update live, and with what acceptable latency? The difference between a few seconds of lag being fine, and it having to move instantly, is the difference between periodic refetching and a server-pushed channel. I don't want to assume the second one just because it's more interesting to build.
+
+What are the real network conditions? This is the question nobody asks and it's the one that changes the most. An app used on good office wifi, and an app used on flaky mobile data in a studio basement, don't call for the same trade-offs. A lot of venues are in basements, which is a concrete, verifiable constraint. It's what will justify me pushing hard later on reducing round-trips and on offline reads.
+
+What devices are we targeting? A low-end Android doesn't have the processing budget of a recent iPhone. That determines whether virtualization and re-render discipline are a comfort or a necessity.
+
+What level of accessibility do we commit to? In Europe, on a consumer-facing product, there's a regulatory dimension now with the European Accessibility Act, not only an ethical one. And on a wellness product specifically, the affected population, older people, people in rehabilitation, is overrepresented, not marginal.
+
+How many languages, and do members travel between studios? Because that takes us straight into time zones, which in a scheduling app is one of the few areas where being wrong by a single hour destroys the feature completely.
+
+And one more, on offline. Does the mobile app need to work without a connection? I'm asking because it changes a lot. If it's read-only consultation, a cache is enough. If we want people to book offline, we need an action queue, an ordering strategy, conflict resolution, and above all we need to decide what we promise the user, because we cannot guarantee them a spot without the server.
+
+Let me also put some numbers on this, even rough ones, because I'd rather reason in quantities than in abstractions.
+
+How many slots are on screen at once? A day of classes at one studio is around twenty cards. A month across studios is thousands. That single answer decides whether virtualization is necessary or whether it would be over-engineering, so I'd like it settled now rather than argued later.
+
+What's the read to write ratio? I'd expect it to be massively unbalanced. A schedule gets read hundreds of times for every booking. That's structural, because it pushes me toward aggressive read caching and a carefully designed write path, rather than the opposite.
+
+And how is load distributed over time? I'd assume it isn't uniform, it's spiky. When a studio opens bookings for the week, hundreds of people hit the same classes in the same second. That has two direct frontend consequences. It's exactly when booking conflicts become likely, and it's exactly when an optimistic interface is most at risk of lying to the user.
+
+So here's what I'm assuming. Member-facing app, web and mobile, one studio at a time, roughly twenty classes visible at once, real-time availability matters, the network is unreliable in the venues, and there's money in the flow through credit packs. Tell me if any of that is wrong. Those assumptions are what drive my rendering strategy, my caching, and how far I go on offline.
+
+One last thing I want to name before I move on, because it will shape questions I ask later. This is business to business to consumer. The customer who pays is the studio, the end user is the member, and their interests don't always align. The studio wants classes full, the member wants flexibility. That tension shows up very concretely in the waitlist policy and in no-show penalties, and when it does, I'd rather ask you than decide unilaterally.
+
+Right. Let me start with the simplest version that actually works, and then I'll show you where it breaks and what I'd add. I find that easier to challenge than a fully-loaded architecture.
+
+The first version is a client application talking to a REST API. It fetches the list of sessions for a studio and a date range, renders them, and when the user taps Book, it sends a request and updates the screen with the response. Loading, error and empty states are handled. That's it. No real-time channel, no offline support, no optimistic updates, no state machine.
+
+This works, and honestly, for a pilot with a single studio, it might be enough. But there are four things that will break.
+
+First, availability goes stale the moment it's rendered. Someone else books while you're looking at the screen.
+
+Second, every click waits for a round-trip, which on a bad connection feels broken.
+
+Third, if the network drops mid-request, we don't know whether the booking happened, and a retry could double-book.
+
+Fourth, nothing tells us when it's failing in production.
+
+Those four are what I want to dig into. Real time, perceived latency, idempotency, and observability.
+
+Now let me build it up properly. I'll draw layers rather than a cloud of boxes joined by arrows, because layers make the dependencies explicit.
+
+At the top, UI components. Rendering, interaction, accessibility.
+
+Below that, local UI state. Filters, whether a modal is open, the hovered seat, the current step in the flow, scroll position.
+
+Below that, server state and cache. Sessions, availability, my profile, my bookings.
+
+Below that, transport. The HTTP client, the real-time channel, the offline queue.
+
+And underneath everything, cross-cutting services. Authentication, internationalization, tenant theming, feature flags, telemetry.
+
+The principle is that each layer has a single responsibility, and the lower layers know nothing about the upper ones. The HTTP client doesn't know that a class card component exists. The cache doesn't know how we render an error.
+
+I want to connect that to clean architecture, since you mentioned it. Clean architecture isn't a backend-only idea. Its central proposition, the domain at the centre, independent of infrastructure, with dependencies pointing inward, applies perfectly on the client.
+
+The domain logic, what a booking is, what states it can be in, what makes a session bookable, shouldn't know whether data arrives over REST, GraphQL or a WebSocket. If I keep that separation, I can swap the transport, test the domain without a network, and share that layer with the mobile app. That's dependency inversion applied to the client.
+
+And that has a practical consequence worth stating. It's what makes web and mobile code sharing possible and sensible. The domain layer, the rules, the state machine, the types, is pure TypeScript and shares completely. The presentation layer doesn't share well, and shouldn't. So the trade-off I'd defend is: share what's invariant, specialize what's contextual.
+
+Now let me tell you the path of a booking through those layers, because data flow is more useful here than a box diagram.
+
+The user clicks. The component doesn't call the API. It dispatches a mutation. The mutation layer generates an idempotency key, applies an optimistic update to the cached session so the interface reflects the change immediately, and fires the request. On success it writes the response into the cache and invalidates the related keys. On a business failure it rolls back to the snapshot and surfaces a typed reason that the component maps to a specific interface. On a network failure it retries with the same key. Meanwhile the real-time channel may push an update for that same session, and the reconciliation logic has to apply it without clobbering the in-flight optimistic change.
+
+That one paragraph is essentially my whole deep-dive, and I'll come back to every piece of it.
+
+On the component breakdown, here's how I'd cut it.
+
+The schedule page is the container. Orchestration, high-level fetching, routing. The filters component owns date, discipline, studio and instructor. It's a container, with local state mirrored into the URL. The schedule list renders the list, and virtualizes only if we decided we need it. It's presentational. The class card renders one slot and its business state, also presentational. The booking flow is the state machine for the journey. The seat selector handles seat selection and its own real-time channel. The waitlist button handles joining and showing position. And a membership badge shows credits and eligibility.
+
+The container versus presentational distinction isn't cosmetic here, and I want to say why. The real benefit is stability. Presentational components don't change when the API changes. If the class card receives a well-defined props object rather than fetching its own data, reworking the API contract doesn't touch it. On a codebase that lives five years, that's the difference between a localized refactor and a project.
+
+Related to that: composition rather than prop accumulation. A class card with twenty-five boolean props is an alarm signal. It means the component is trying to be every variant at once. The answer is composition, sub-components passed as children, or compound components, rather than one flag per variation.
+
+This is somewhere my experience speaks directly. At Ivalua I built a component library consumed by several teams, with a configuration engine that let people customize without writing code. The problem I was solving, how does a component stay stable while remaining extensible by third parties, is exactly the problem here, where every studio wants its own appearance.
+
+If you want the detail on that, the axes that mattered were these. Contracts: defining what's guaranteed stable versus what can move, so the core can evolve without breaking consumers. Extension points, declared explicitly, rather than letting teams patch the inside of components. That's the difference between designed extensibility and extensibility you suffer. Versioning and migration, which is the real problem of an internal library: how do you evolve a component used by a dozen teams without blocking everyone, and without freezing it forever. And developer experience. The configuration engine let non-developers customize, which is API design for humans, and that's harder than API design for machines.
+
+Last point on the breakdown, and it's the one that connects structure to performance: the re-render boundary. When a real-time event says session forty-two now has three spots left, it should re-render the card for session forty-two, and not the other forty. You don't get that by adding memoization afterwards, you get it from structure. Each card subscribes to its own slice of cache, rather than receiving a global array as props.
+
+I'd state that as a principle. The first lever on re-renders isn't memoization, it's state structure. Colocating state, splitting contexts, letting each card subscribe to its own slice. Memoization is what you add after you've measured, not what you sprinkle everywhere upfront.
+
+Let me move to the data. I'm not designing your database, but I need to know what I'm talking about in order to negotiate the API contract, and I think that's the difference between a frontend engineer and someone who just consumes endpoints.
+
+I'd cut the domain into four contexts. Catalog holds studio, location, room, discipline and instructor. That's who, what, and where. Scheduling holds the class template, the session and the seat. That's when. Booking holds the member, the booking and the waitlist entry. That's who's coming. And billing holds memberships, packs, orders and payments. That's who pays.
+
+These map to bounded contexts, and they're also the natural seams of the API. The reason it matters to me as a frontend engineer is that a screen usually spans several of them. The schedule screen needs catalog, scheduling and billing at once, and that tension is exactly where waterfalls and over-fetching come from.
+
+Starting with catalog. The studio entity carries branding, timezone, currency, default locale, and the booking policies: how far in advance bookings open, how late you can cancel for free, what the no-show penalty is.
+
+Two of those fields have a disproportionate frontend impact. Branding has to be available before the first paint, otherwise the user sees a flash of the wrong colours before the app rebrands itself. On an app that's supposed to belong to the studio, that's visible and it breaks the illusion. And timezone has to travel with every piece of temporal data. I'll come back to this in detail, but let me plant it now: a class at six in the evening in Barcelona is at six in the evening for everyone, including a member checking from Paris.
+
+Location lets a studio have several addresses, potentially in different time zones. Room carries capacity and the floor plan. Discipline carries a name and a colour, which feeds filtering and the visual coding of the schedule. And instructor matters more than people expect, because a lot of members choose the class taught by a specific person rather than yoga at six. So I'd plan for filtering by instructor, and for displaying a substitute when there is one.
+
+Scheduling is where the modelling subtlety is, so let me spend a moment there.
+
+A class template is the recurring definition. Vinyasa, every Tuesday at six, room two, forty-five minutes, this instructor, fifteen spots, one credit. It carries a recurrence rule.
+
+A session is the concrete dated occurrence. That's what you actually book. It carries its start instant in UTC, its timezone, its capacity, its booking counter, its status, and the exceptions for that specific occurrence: a substitute instructor, a changed room, a cancelled class.
+
+Which raises a trade-off: do we materialize the occurrences, or generate them on the fly from the rule?
+
+Generating on the fly costs nothing in storage. But a generated occurrence has no stable identity, so you can't attach a booking, a cancellation or a substitute to it. And handling exceptions inside a recurrence rule gets unmanageable fast.
+
+Materializing every occurrence gives each one an identity, and therefore the ability to hang data off it. But then, how far into the future do you generate?
+
+The answer is a rolling horizon. We materialize a few months ahead, and a job regenerates over time. That reconciles stable identity with bounded storage.
+
+And here's the real question, which I'd raise even if you didn't: what happens when the rule changes? The instructor changes for every Tuesday from September onwards. Do we modify the occurrences that are already materialized? All of them, or only the future ones? And what about the ones that already have bookings against them?
+
+This is exactly the edit this event, all events, or all following events problem from Google Calendar. And it has a direct frontend consequence. The back-office interface has to ask the user that question rather than guessing, and the member app has to handle the case where the class you booked has changed instructor or room, with a clear notification.
+
+Finally, seat exists only for classes with assigned spots. An identifier, a label like bike twelve, a position in the floor plan, and a type: standard, accessible, or out of service.
+
+On the booking side, a booking carries the session, the member, optionally the seat, its status, and its idempotency key. Its lifecycle is a real state machine. Pending can become confirmed, or expire if a hold isn't confirmed in time. Confirmed can become checked in when the person shows up, or no-show when they don't, which may trigger a penalty depending on the policy. And either the member or the studio can cancel. Separately, a waitlisted entry becomes confirmed when a spot frees up.
+
+There's a point worth making here, because it illustrates the simple-first principle on a concrete case. The pending state only exists if there's a temporary hold while a payment goes through. If the booking is covered by a credit pack, the debit is instantaneous and we go straight to confirmed.
+
+So I wouldn't introduce hold-and-confirm by default. It brings a time-to-live, an expiry job, a pending state, a countdown in the interface, and hold release on abandon. That's a lot of machinery, and a credit-pack booking doesn't need any of it. I'd add it exactly when a card payment sits between the intent and the confirmation.
+
+The waitlist entry raises a product question I'd rather ask you than answer alone. When a spot frees up, is the first person on the list booked automatically, or do they get an invitation to accept within a time window?
+
+Automatic maximizes occupancy, which is the studio's interest. Opt-in protects the member from being committed without wanting it, debited a credit, and possibly penalized for a no-show because they never read the notification. And the right answer depends on the delay: twenty-four hours before the class, opt-in is reasonable. Twenty minutes before, an acceptance window just leaves the spot empty.
+
+That's a product call more than an engineering one. I'd probably go hybrid based on time to class, but I'd want to know whether studios penalize no-shows, because auto-booking someone who then gets penalized for not showing up is the worst of both worlds.
+
+And on billing, the membership or pack carries the subscription type, remaining credits, validity, and restrictions on which disciplines or studios are allowed. That's what drives eligibility, and eligibility is a major point for the interface, because being able to book doesn't only depend on spots remaining, it also depends on the pack. I'll come back to that when I talk about interface states, because it's the point most people miss.
+
+Now, availability. This is a modelling point where it's easy to get it wrong, and getting it right is very visible.
+
+Availability is not a stored attribute. It's a projection. Availability equals capacity, which is static, minus occupancy, which is dynamic.
+
+A seat has no is-available field. It can't have one: bike twelve is taken at six and free at seven. Availability is a property of the pair, seat and session, not of the seat. If you store it on the seat, your model breaks at the second session of the day.
+
+The consequence for the contract is that the client consumes a list of seat availability, seat identifier plus status, per session, kept separate from the floor plan.
+
+There are two regimes. Anonymous capacity, where there are no individual spots, just a counter, so the session carries capacity and booked count. And assigned seats, where there are real seat entities and availability is computed seat by seat.
+
+The point to make is that the second contains the first. If you have seats, you can derive the counter. But you don't make classes that don't need a floor plan pay for the complexity of one. The floor plan is optional, and the interface switches between a simple flow and the seat selector depending on whether one exists.
+
+On the counter itself, derived or materialized. Derived, meaning counting bookings on every read, is always exact and impossible to desynchronize, but expensive when the schedule is read massively. Materialized, meaning a counter on the session updated on every write, is instantaneous to read, and it's also that counter which carries the no-overbooking invariant on the server side. In exchange it can drift if there's a bug, so it needs periodic reconciliation. Given the read-write ratio we established, hundreds of reads per write, I'd go materialized.
+
+And there are three states, not two. Free, meaning no occupancy. Held, a temporary lock with an expiry, meaning someone is in the middle of paying. And booked, a confirmed reservation.
+
+Without the held state, you face an impossible choice. Either you book on click, and an abandoned payment blocks the spot indefinitely. Or you only book after payment, and two people can pay for the same spot. A hold with an expiry resolves that, and it's exactly what explains the pending state on the booking and the countdown in the interface.
+
+On top of that there are unavailabilities that don't come from members at all: a broken machine, a spot reserved for staff.
+
+And here's the principle that governs everything downstream. Whatever number the server gives me for spots left, it's a hint, not a guarantee. It might come from a cache, it might be two hundred milliseconds old, and someone may be mid-payment on the last seat. The only moment truth exists is the response to the booking request.
+
+Which means the rejection path isn't an edge case I handle at the end. It's a nominal path I design from the start. The spot was just taken, here are three alternatives, has to be as polished as the success screen.
+
+Let me talk about the API contract, because I don't think a frontend engineer should be a passive consumer of it. I'd negotiate it, and I have four arguments I'd bring.
+
+First, enriched responses. Does the server return sessions with the discipline, the instructor, spots left and eligibility already embedded, or references I have to fetch separately?
+
+Normalized gives a compact payload but causes a waterfall. Sessions, then instructors, then disciplines. Each hop costs a round-trip. Enriched gives a bigger payload with duplication, the same instructor repeated forty times, but a single round-trip.
+
+The criterion that settles it is the cost of a round-trip on the target network. On mediocre mobile data in a basement, each hop costs somewhere between one hundred and three hundred milliseconds. Three hops in a chain is a second of blank screen.
+
+So: I optimize for round-trips, not payload size. Duplicating an instructor forty times costs a couple of kilobytes after compression. An extra waterfall costs hundreds of milliseconds of blank screen. Bandwidth is abundant, latency isn't.
+
+Second, eligibility. Who computes whether this member can book this class?
+
+Client-side, from the pack and the session, is reactive and works offline. But it duplicates a business rule across three clients, web, mobile and back-office, and those three copies will drift. The day a studio adds a time restriction to a pack, you display bookable for a class the API will refuse.
+
+Server-side, returned as a field with a typed reason, means one implementation, and it can evolve without redeploying clients.
+
+The criterion is: is this a business rule or a presentation rule? Eligibility is a business rule. It changes, it has exceptions, and it's worth money. So the server decides, the client presents. The server returns whether I can book, and the typed reason why not, and the client maps that reason onto an interface.
+
+There's a subtle case I'd raise myself: what do we do offline? You can't ask the server. Two honest options. Show the last known eligibility, explicitly marked as unconfirmed. Or embed an approximate copy of the rules and accept that it can be wrong, in which case the interface has to stay cautious rather than assertive. My preference: offline I'd show the last known eligibility, explicitly marked as unconfirmed, rather than re-deriving the rules client-side and lying confidently.
+
+Third, typed errors, because errors drive the interface. A four hundred with a message, or a machine-readable error code? The criterion is whether each cause calls for a different interface. Here it massively does.
+
+Session full means roll back and offer the waitlist. That's retention. Seat taken means go back to the seat selector. That's experience. Already booked isn't an error at all, and I'll come back to that. No credits left means offer to buy a pack. That's revenue. Not covered by plan means offer an upgrade. That's revenue too. Booking window closed means tell them it opens on the third of August at nine, and offer a reminder. Cancellation too late means explain the policy, which saves a support ticket. And payment failed means offer another payment method. Revenue again.
+
+Two points on that. The displayed message belongs to the client. The code is for the machine. The text has to be translated, adapted to the brand's tone, and paired with the right action. Rendering the server's raw message is a shortcut that produces incoherent interfaces and sometimes leaks information.
+
+And already booked is not an error. It's the normal result of a successful retry or a double tap. Treating it as an error shows an alarming alert in a situation where everything is fine.
+
+Put together: three of these codes are revenue opportunities rather than failures. And already booked isn't an error at all, it's usually a successful retry. Showing an error there scares the user for nothing.
+
+Fourth, time in the contract. Instants travel in UTC, the studio's timezone travels with the data, and rendering happens in that timezone. The device's own timezone is only used for relative displays, like in two hours, or to warn a member who's travelling. I'll expand on this later, but it's a field in the contract, so I'm stating it now.
+
+Next, where state lives. I'd separate it into four kinds, because I think that separation is what keeps a client application maintainable.
+
+Server state: sessions, availability, seats, my bookings, my pack, the floor plan. I don't own it, it can be stale, it gets revalidated, it gets garbage collected.
+
+Local UI state: whether a modal is open, which seat is hovered, the step in the flow, scroll position. Ephemeral, not shared, dies with the component.
+
+Global client state: the auth session, the tenant theme, the locale, network status, the offline action queue. Cross-cutting, persistent, few consumers but scattered ones.
+
+And URL state: the date, the filters, the selected class. Shareable, bookmarkable, survives a reload.
+
+The criterion that sorts everything into one of those four is scope and lifecycle. Who needs it, and when does it die.
+
+The classic mistake is putting server data in Redux. It has a completely different lifecycle, caching, staleness, background revalidation, garbage collection, and you end up reimplementing all of that by hand inside reducers. I keep the global store for cross-cutting client state and the offline queue.
+
+And there's a symmetric mistake that gets mentioned less often: colocating everything and then threading it back down through five levels of props. The rule I'd apply is colocate by default, lift when it's proven necessary, and prefer composition through children over prop drilling.
+
+On the URL specifically. Studio forty-two, schedule, date, discipline yoga. The date and the filters live in the URL, because a member wants to send come to this class to a friend, wants the back button to work after opening a class, and wants their filters still applied after a reload.
+
+And there's a trap worth mentioning. If the booking modal opens without touching the URL, the Android back button exits the application instead of closing the modal. That's one of the most classic uninstall triggers on mobile, and it's completely invisible when you develop on a desktop.
+
+On the data fetching library. TanStack Query, SWR and RTK Query all give you caching, request deduplication, background revalidation, stale-while-revalidate, and loading and error states. Without one of them you reimplement all of that, badly. And none of the three does automatic normalized caching, which is a limitation I'll come back to.
+
+TanStack Query is the most complete. Mutations, optimistic updates with built-in rollback, prefetching, server rendering with fine control, the best devtools, the largest community. Against it: three times the weight of SWR, more concepts to master, stale time versus garbage collection time, structural sharing, and a version five that introduced breaking changes.
+
+SWR embraces minimalism. About four kilobytes, very elegant with Next.js. On a read-dominant application, simplicity is a feature, not a limitation. Against it: you hit a ceiling as soon as mutations get complex, invalidation is manual, and it has no real notion of stale time or conditional revalidation.
+
+RTK Query is the right choice exactly when it looks like it: when Redux Toolkit is already there. It eliminates thunk boilerplate, makes invalidation declarative through tags, and gives you time-travel debugging. Against it: it requires Redux, imposes a lot of specific concepts, its definitions are verbose, and the combined weight is significant.
+
+Two questions settle it. Is Redux already there, and how complex are the mutations?
+
+If the app already runs on Redux, I'd default to RTK Query. Adding TanStack Query alongside means two competing data paradigms in one codebase, and that's a real maintenance and onboarding cost I've watched play out. On greenfield with no Redux, TanStack Query: better invalidation ergonomics and devtools, without paying the Redux tax. And I'd never adopt Redux just to get RTK Query.
+
+The thing I'd emphasize is that the decision is driven by mutation complexity, not reads. All three cache a list of classes just fine. It's this booking flow, optimistic update, rollback on conflict, idempotent retry, reconciliation with a live event, that separates them.
+
+Related to that, document cache versus normalized cache. All three of those libraries store whole responses under a key. So the same entity can exist in several copies. Class forty-two is in the schedule, in my bookings, and in the detail screen. I cancel from the detail screen, and the other two lie until they revalidate.
+
+A normalized cache, like Apollo or Relay, stores entities flat by identifier, and views hold only references. An update propagates everywhere instantly. But it costs: you need reliable global identifiers, garbage collection, and lists still have to be invalidated separately, because a new entity doesn't magically appear in a list.
+
+My answer is a document cache with invalidation discipline. Concretely, structure the query keys hierarchically, sessions then studio then date, so I can invalidate by prefix after a mutation.
+
+And if that pain grew, if the app became genuinely graph-shaped and stale copies started causing real bugs, that's precisely where GraphQL with Apollo would earn its complexity. Its normalized cache is the best thing about it. But I wouldn't buy that upfront.
+
+One more point on caching: freshness per data type, because a single global value is always a bad compromise. The floor plan can be cached for hours, it only changes if the room is rearranged. Disciplines and instructors, about an hour, they're near-static. The structure of the schedule, a few minutes. Availability, zero, with a real-time channel on top, because it changes by the second. And my profile and my credits get invalidated after a mutation, because they change when I act.
+
+Stale time per data type, not one global value. Too short and I hammer the API. Too long and I show phantom spots.
+
+Now the states of the interface, and I want to distinguish two levels, because I think most designs only see one.
+
+The technical level applies to any remote data. Idle, nothing requested yet. Initial loading, which should be a skeleton shaped like the content, not a centred spinner. Success, the content. Empty, no classes on this day, plus an action, and that is not an error. Error, a clear message plus retry, distinguishing network from server. Refetching, which shows the content plus a discreet indicator. Optimistic, showing the anticipated value with an in-progress visual state. And offline, with a banner, the cache, and queued actions.
+
+Two things at that level separate a good implementation from a mediocre one.
+
+Never confuse empty with error. An empty schedule on a Sunday isn't an outage. Displaying something went wrong when there simply are no classes generates support tickets and anxiety for nothing.
+
+And never fall back to a skeleton on a refresh. That is literally the difference between an application that feels slow and one that feels instant. If you re-skeleton on every background revalidation, the screen flickers and the user perceives every interaction as a reload. The distinction between initial load and background refresh is a state architecture decision, not a cosmetic detail.
+
+Then there's the business level, on a single class card. Bookable shows spots left and a solid call to action. Almost full shows a two spots left badge, which is a conversion lever. Full offers the waitlist. Waitlisted by me shows you're third in line, with the option to leave. Booked by me shows a confirmed badge with cancel or view. Pending disables the button and shows an indicator. Ineligible says not included in your pack, with an upgrade or purchase action. Booking not open says opens on the third of August at nine, with a notify me action. Cancellation locked says free until twelve hours before, and cancelling shows a warning. Cancelled by studio shows the class struck through with a reason. And past is greyed out.
+
+The one I want to hammer is ineligible. It's the case most people forget, because they model availability and stop there. But this class is full, and your pack doesn't cover this class, are two completely different failures. The first one offers a waitlist. The second one is a sales opportunity, because the member wants to come, has money, and is just missing the right pack.
+
+If I collapse those two into one you-can't-book-this state, I've turned a sales opportunity into a dead end. And that's the studio's revenue, not just a user experience detail.
+
+There's a second, subtler point about these states: some of them expire on their own. At one minute to six, cancellation is free. At one minute past six, it isn't, and no server message told you. It's a rare case, data that becomes false purely through the passage of time. The consequence is that you need either a timer that recomputes at the deadline, or revalidation when the window regains focus, or, most importantly, a recheck at the moment of the action. Never authorize a free cancellation on the strength of a state rendered ten minutes ago.
+
+And on the journey itself, I'd model it as an explicit state machine. Idle, then confirming, which shows the recap: class, instructor, time, cost. From there, selecting a seat if the class has assigned spots. Paying if it isn't covered by the pack. Submitting, which is where the optimistic update already shows the result. Then success, with confirmation and add-to-calendar. Or failed, with a typed reason: seat taken sends me back to the selector, session full offers the waitlist, payment failed offers another method, and a network failure retries automatically with the same key.
+
+The trade-off there is state machine versus booleans. Five booleans, is-loading, is-error, is-success, has-seat, is-paying, give you thirty-two combinations, the vast majority of which are impossible but still representable. And anything representable is reachable by a bug. On top of that the rendering logic becomes a cascade of nested conditions nobody dares refactor.
+
+A discriminated union makes impossible states unrepresentable, forces TypeScript to handle every case, and keeps state-specific data inside the state it belongs to. The failure reason only exists in the failed state, so you can't accidentally read it anywhere else.
+
+A formal state machine library like XState adds transition validation and visualization, at the cost of a dependency and a learning curve.
+
+My answer is a discriminated union in TypeScript, with no dependency. You get most of the guarantee for zero cost. XState if the graph genuinely becomes complex, with parallel states, nested states, history.
+
+So: a discriminated union rather than a handful of booleans. Five booleans give you thirty-two combinations, most of which are impossible but still representable, so a bug can reach them. With a union, impossible states are unrepresentable and the compiler forces me to handle every case.
+
+Let me go deep on the booking flow now, because I think it's the heart of this design.
+
+Here's the full sequence, following the data.
+
+Step one, the click. An idempotency key is generated. A UUID, generated on the click, not at the moment the request is sent. That distinction is the subtlest point in the whole flow, and I'll explain why in a second.
+
+Step two, the optimistic update. We take a snapshot of the current cache state, decrement spots remaining, and the card moves to pending. The user sees the result immediately.
+
+Step three, the request goes out with the key in a header.
+
+Step four, success. We write the response into the cache, then invalidate the related keys, the session, my bookings, my pack, so everything resynchronizes in the background. The card becomes booked by me.
+
+Or step four, business failure, say session full. We roll back to the snapshot, the card becomes full, and we offer the waitlist. The failure is explained, never silent.
+
+Or step four, network failure. We retry with increasing delay, reusing the same key. No double booking is possible.
+
+And step five, in parallel, a real-time event may modify that same session. Reconciliation has to apply it without overwriting the in-flight optimistic mutation.
+
+On optimistic versus pessimistic, since that's the real trade-off there.
+
+Pessimistic means a spinner, then updating on the response. It never lies on screen, the code is simple, there's no rollback. But every action feels slow. On a network with three hundred milliseconds of latency, the app feels sluggish.
+
+Optimistic means the interface changes immediately, with rollback on failure. It feels instant, and it's directly an improvement to interaction latency. But it's more complex, and above all it risks lying.
+
+The criterion is the probability of success and the cost of a lie. And the interesting part is that my answer is differentiated per action, and even per context.
+
+Cancelling: optimistic, it almost always succeeds. Joining a waitlist: optimistic, there's no scarcity. Booking a half-empty class: optimistic, a conflict is unlikely. Booking the last spot: cautious. Paying: pessimistic, never show a false confirmation of payment.
+
+The refinement I'd add is modulating the optimism based on spots remaining. On the last few spots, an honest confirming in progress is better than a cheerful you're in, followed by actually, no.
+
+And the point I don't want to miss: optimism doesn't remove failure handling, it makes failure more visible, because the user already saw success. So the rollback has to explain itself. That spot was just taken, here are three alternatives. Never a silent revert.
+
+Then there's invalidation, which I'd argue is the real subject when people say caching.
+
+After a successful mutation, how do you resynchronize? You can invalidate and refetch, which gets you the server's truth and means you can't get your local transformation wrong, but it's an extra round-trip. Or you can write the response into the cache, which is instant and costs zero requests, but you have to transform it correctly, and the rest of the screen can stay stale.
+
+The criterion is whether the mutation affects data beyond what it returns. Here it does. A booking changes the session, but also my credits, my upcoming bookings, and possibly a waitlist. The response doesn't contain all of that.
+
+So the answer is both. Optimistic write immediately for perception, the response written on success, then background invalidation of the impacted keys. The user sees it instantly, and global consistency restores itself silently.
+
+The trap is keeping the pre-mutation snapshot, otherwise the rollback can't be clean. And if two optimistic mutations are in flight on the same data, a naive rollback of the first one wipes out the second. Which is why I'd use the mechanisms the library provides rather than hand-rolling it with local state.
+
+Let me talk about idempotency properly, because it's the piece I care most about.
+
+The problem is this. The client sends the request. The server creates the booking. The response is lost, the network drops, the request times out. The client believes it failed and retries. Now there are two bookings and two charges.
+
+Where is the key born? There are three options and two of them are wrong.
+
+Generated by the server: impossible. The server cannot know that two distinct requests represent the same user intention.
+
+Generated by the client at request time: broken, and this is the classic mistake. Every retry generates a new key, so every retry creates a new booking. You feel like you've solved the problem and you haven't touched it.
+
+Generated by the client at the moment of intention, meaning the click: correct. The same key is reused for every attempt belonging to that intention.
+
+And that's exactly why it's a frontend responsibility. The key is tied to the user's intention, not to the HTTP request. Only the client knows that this retry is a continuation of the same click. The server can't infer it.
+
+That covers three scenarios at once: the impatient double tap, the automatic retry after a timeout, and resynchronizing an action that was queued offline an hour ago.
+
+There's a subtler question, which is when to regenerate the key. If the user gets session full, joins the waitlist, then a spot frees up and they book again, that's a new intention, so it's a new key. Reusing the old one would make the server replay the old failure. The rule is one key per intention, and a new intention every time the user makes a fresh decision.
+
+And a scoping corollary: the key has to cover the booking and its associated payment together. Otherwise you've protected against a double booking but not against a double charge.
+
+On retries, what to retry and what never to retry.
+
+A timeout or a network error: yes, with backoff and jitter, because it's transient and the outcome is unknown. Server errors in the five hundreds: yes, bounded, they're probably transient. A rate limit response: yes, respecting the retry-after header, because the server told you what to do. A business error in the four hundreds: no, retrying changes nothing. An unauthorized response: no, that's a token refresh followed by a replay, which is re-authentication, not a retry. And any mutation without an idempotency key: no, because you'd be generating duplicates.
+
+On the parameters. Exponential backoff, one second, two, four, avoids hammering a server that's already struggling. Jitter, meaning randomness added to the delay, is essential and frequently forgotten. Without it, every client retries at the same moment and finishes off the server exactly as it starts recovering. Then a bound, three attempts, after which you hand control back to the user with an explicit button. And a timeout on every attempt, because a network call without a timeout is a bug waiting to happen.
+
+The link between the two topics is the thing I'd state explicitly: retries and idempotency aren't two topics, they're one. I only auto-retry operations that are idempotent. A silent retry on a non-idempotent mutation is a duplicate generator.
+
+There's also a user experience point. Don't retry silently for ten seconds while the user stares at an indicator with no explanation. After a couple of seconds, say what's happening.
+
+And on preventing double submission, I'd describe it as four layers. The interface disables the button, which is necessary and very insufficient. The client deduplicates in-flight mutations. The protocol carries the idempotency key, and that's the real protection. And the server enforces a uniqueness constraint in the database, which is the ultimate safety net.
+
+You want all four, but only layers three and four are guarantees. The first two are comfort.
+
+Disabling the button is user experience, not correctness. Two tabs, a direct API call, or an offline resync walk straight past it. The actual guarantee is the idempotency key plus a server-side uniqueness constraint. I can make the happy path feel instant. Correctness has to live server-side.
+
+Let me move on to real time.
+
+On transport, there are three options. Polling, where the client asks. Server-sent events, which is server to client. And WebSockets, which are bidirectional.
+
+Polling is trivial, needs no infrastructure, is cacheable, and degrades gracefully. But latency equals the interval, and the vast majority of requests come back saying nothing changed.
+
+Server-sent events is a stream pushed over a single HTTP connection held open. Three arguments in its favour. It's ordinary HTTP, so it goes through proxies and firewalls with no configuration. Reconnection is automatic and built in, with a last-event-ID header that lets the server replay the events you missed. And the need here is purely one-directional. Its limits: one-directional, text only, and a connection limit I'll come to.
+
+WebSockets are bidirectional and binary, with the lowest latency. But they're stateful, so load balancing becomes sticky, and reconnection, heartbeats and recovery after a drop are all on you. You pay for bidirectionality even if you never use it.
+
+The criterion is whether the client needs to emit continuously.
+
+For live availability, server-sent events. The need is purely server-to-client, it's plain HTTP, and the automatic reconnect with last-event-ID means the server can replay what I missed. With WebSockets I'd write all of that myself. I'd only reach for WebSockets where the interaction is genuinely bidirectional, like shared seat selection.
+
+If you ask me why not WebSockets everywhere: because you'd be paying for a bidirectional channel, stateful infrastructure and your own reconnection logic to serve a one-directional need. The right transport is the simplest one that satisfies the requirement.
+
+One technical detail I'd flag, because it bites people. Server-sent events work on any HTTP version. It's not tied to one, it's just a text event stream response held open, available since HTML five. What changes with the version is the limit on concurrent connections per domain.
+
+On HTTP one point one, the browser caps at roughly six connections per domain. A server-sent events connection stays open permanently. Several tabs on your application means several streams, and the budget is saturated, so every other request queues up behind them. That bug is genuinely confusing to diagnose, because the report you get is the app freezes when I have three tabs open, which sounds like nothing.
+
+On HTTP two and three, requests are multiplexed over a single TCP connection, with around a hundred concurrent streams, configurable. The problem disappears.
+
+So: server-sent events work on any HTTP version, but I'd want HTTP two, otherwise the six-connections-per-domain cap can starve every other request when a few tabs each hold an open stream.
+
+Two nuances if you want to push on it. The limit is browser-side, not server-side. On the server, the cost is the number of long-lived connections to hold, which pushes you toward an asynchronous backend. And there is a workaround even on HTTP one point one: share a single stream across all tabs through a shared worker that rebroadcasts. I'd only build that if the problem actually showed up, otherwise it's over-engineering.
+
+On the payload, delta or snapshot. A full snapshot of the session is simple and idempotent, but heavy if it's repeated often. A delta is tiny, but it assumes you received every previous one, in order.
+
+My answer is deltas plus a monotonic version number. The event carries the session identifier, a version, and the list of changes.
+
+The version number does three things. It lets me reject an out-of-order event: if I receive version one hundred and seventeen after one hundred and eighteen, I ignore it. It lets me detect a gap: if I'm at one hundred and fifteen and I receive one hundred and eighteen, I've missed events, so I do a full resynchronization rather than patching blindly onto an incomplete base. And it lets me ignore an event I've already applied.
+
+The trap is that a delta without versioning is a time bomb. You never detect that you missed something, and your screen silently diverges from reality. Always have a resynchronization strategy, and that's exactly what the last-event-ID mechanism makes easy.
+
+Then there's reconciliation with the cache, which I'd argue is the real frontend subject of real time.
+
+An incoming event must not overwrite an in-flight optimistic mutation. If I've just clicked book and my interface already shows the spot as mine, a server event saying there are three spots left must not put it back. Reconciliation has to know about mutations in progress.
+
+On reconnect, resynchronize the visible state rather than replaying a potentially long history.
+
+Batch the updates. If two hundred seats change in one second, we don't apply two hundred re-renders, we aggregate over an animation frame.
+
+And subscribe only to what's visible, unsubscribing when the tab is hidden, with a resync on return. That's a mobile reflex, battery and connection budget, and it matters in the conditions our users are actually in.
+
+If you want a component to go deep on, I'd propose the seat selector, because it concentrates every hard problem in this design into one place.
+
+It's the choose your spot component. On some classes, spinning with numbered bikes, reformer pilates, you don't book an abstract spot, you book a specific one on a floor plan. It's also the only component here that genuinely justifies a WebSocket.
+
+The most important design point is that it has three layers of state with three different lifetimes, and that follows directly from availability being a projection.
+
+The floor plan is server data, near static, cacheable for hours. It only changes if the room is rearranged. The seat states for this session are volatile, real-time, never persisted. And my current selection is purely local UI state that has no meaning outside the flow.
+
+Two separate resources with two different cache lifetimes. If I merge them into one payload, I re-download the entire room layout on every availability update, which is pure waste on a channel that fires several times a second.
+
+On concurrency, we place an optimistic hold on the seat that was clicked so the feedback is instant, but it's only guaranteed once the server validates. If someone took it in between, we roll back and say pick another seat. It's the same logic as double booking, applied at a finer granularity.
+
+Three details make the difference here.
+
+The conflict experience. The just taken state should be animated, not abrupt. A seat that vanishes bluntly while you're aiming at it is disorienting. A smooth transition communicates what's happening. It's a small thing, but it's the kind of small thing that distinguishes someone who has built interfaces from someone who has specified them.
+
+Reconciliation. A seat twelve is taken event must never wipe out the rest of my current selection. The server owns the seats, the client owns my selection. If the conflict is genuinely on a seat I had selected, the server wins and the seat goes, but it goes explicitly, with an explanation, never silently.
+
+And accessibility, which I'd raise here without being asked, because this is the hardest thing in the whole application to make accessible. A visual grid of clickable boxes gives a screen reader nothing. You need keyboard selection, with labels that carry both the spatial information and the state, something like bike twelve, available, front row. And you need to announce changes without drowning the user in constant voice notifications.
+
+The seat selector is the hardest thing in this app to make accessible. A clickable grid gives a screen reader nothing. You need keyboard selection with labels that carry position and status, and live announcements that are informative without being constant.
+
+Let me move to hardening, starting with offline.
+
+I'd frame it as four levels of increasing cost. Level zero is nothing, an offline error screen. Zero cost, bad experience. Level one is cached reads: the member sees their schedule, and crucially their booking to show at the front desk. Low cost, very high value. Level two is queued writes: an optimistic booking replayed on reconnect. High cost, and debatable value. Level three is fully offline-first, which is very high cost.
+
+The criterion is real usage. The network is often bad in studios, frequently because they're in basements. And the dominant need in that context is to consult and to prove your booking, not to create one.
+
+So: level one systematically, level two only if usage data justifies it.
+
+And here's the point I'd actually defend. Offline booking is technically attractive and honestly questionable in value. I'd be promising a spot I can't guarantee. The member thinks they're booked, walks in, and there's no bike. A feature that fails silently is worse than not having it. If we did build it, the interface has to say pending confirmation, never confirmed.
+
+If we did implement queued writes, here are the rules that decide whether it's any good.
+
+Ordering: replay actions in the order they were issued. Book then cancel is not the same as cancel then book.
+
+Expiry: a queued action for a class that has already happened must be dropped, not replayed. Otherwise you book yesterday's class.
+
+Compaction: booking then cancelling before resync should cancel out locally, rather than producing two API calls.
+
+Idempotency: the key generated offline protects against a duplicate if the action had actually succeeded before the connection dropped.
+
+Notification: if the user closed the app, they have to learn the outcome some other way. A push notification, or an unmistakable state when they reopen.
+
+And conflict resolution: server wins, without hesitation. A seat is an exclusive resource, there's nothing to merge. Conflict-free replicated data types are the wrong tool here, and knowing that is knowing the tool and its domain of application.
+
+On the service worker, I'd use a strategy per resource type rather than one global policy. Hashed assets and fonts, cache first. The application shell, cache first with a background update. The floor plan and disciplines, stale while revalidate. The schedule, network first with a cache fallback. Availability, network only. Mutations and payment, network only.
+
+The classic trap here is painful: a service worker stuck on an old version. A badly managed service worker serves a stale application forever, and your users never see your fixes. You need an explicit update strategy. Detect the new version, and either prompt for a reload or activate immediately, knowing that immediate activation can break an in-progress session if assets change under the application's feet.
+
+And on storage, IndexedDB for the action queue, because it's asynchronous and transactional. Local storage is synchronous, so it blocks the main thread, and a corrupted queue is worse than no queue. Tokens stay in memory. Three things I'd plan for: schema versioning with migrations, purging on logout, especially on a shared device, and the fact that the browser can evict storage under pressure, so the application has to work without it.
+
+On rendering strategy, I'd decide per surface.
+
+Public schedules and studio pages: static generation with incremental revalidation. Indexable, identical for everyone, fast largest contentful paint.
+
+A shareable class detail page: server rendered. Indexable, but with fresh data.
+
+The member app itself: client rendered. Personalized, no search engine requirement, highly interactive.
+
+The three questions that settle it, in order: is the content public and indexable, is it personalized, and how often does it change?
+
+If you challenge me with why not server-render everything, since it's better for performance, here's my answer. Server rendering mainly improves largest contentful paint. Inside the member app, the user has been there for thirty seconds. The bottleneck isn't first paint, it's interaction latency: how fast the Book button responds. Server rendering would add server cost and hydration complexity to optimize a metric that isn't the constraint here. And interestingly, the thing that actually improves interaction latency on this screen is the optimistic update we discussed earlier.
+
+There's a multi-tenant trap in rendering too. With per-studio branding, the theme has to be known before the first paint, otherwise you get a flash of unbranded content. That's a real argument for server rendering on the public surfaces, because the tokens get injected server-side. On pure client rendering, you either inline critical CSS per tenant, or accept a neutral loading screen.
+
+And on theming itself: one build per tenant gives you optimal CSS and zero flash, but it doesn't scale. A thousand studios means a thousand builds, and a new customer waits for a deployment. The answer is a single build with CSS custom properties, with tokens resolved as early as possible.
+
+There's an accessibility angle on theming that I think is worth raising. If a studio picks pale yellow on white, the contrast ratios collapse. So you validate contrast ratios at the moment the studio picks its colours, in the back-office, and you derive tokens automatically where you can. That link between multi-tenancy and accessibility is easy to miss.
+
+On performance. If you ask me how I'd virtualize the list, my answer starts with a question. First, do we need to? We said a day of classes is about twenty cards. Virtualizing that is over-engineering, and it costs me browser search, deep-linking to an element, and screen-reader semantics. I'd virtualize if we're rendering a month across studios.
+
+And the real answer for a schedule is that the natural pagination of a calendar is a time range, not a page. You navigate by day or by week.
+
+On re-renders, as I said earlier, the main lever isn't memoization, it's state structure. Colocate. Split contexts, because a context holding both the theme and the scroll position re-renders everything on every scroll. And use composition through children, which naturally avoids re-rendering descendants.
+
+Memoization comes after, targeted at the boundaries that matter. Here, that means memoizing the class card so a real-time event on one session doesn't re-render the other forty. That's a case where the gain is structural and predictable, not speculative. And the React Compiler is where the framework is heading on this, which will make a lot of the manual work unnecessary.
+
+On which metric to optimize, it depends on the surface. The public schedule: largest contentful paint, because the user arrives from Google and judges in a second. The member app: interaction latency, because they're already inside, and what matters is that Book responds instantly. And everywhere, cumulative layout shift, not for aesthetic reasons but because a layout that jumps as availability updates can make someone tap the wrong class. Here, visual instability produces a booking error.
+
+And I'd measure in real user monitoring, at the seventy-fifth and ninety-fifth percentile rather than averages. A perfect Lighthouse score on a wired MacBook tells me nothing about a mid-range Android on mobile data in a basement, which is exactly our user.
+
+On the bundle: route-based splitting as a baseline, plus lazy loading the big pieces that are rarely reached. The payment flow, the seat selector, which is only useful for some classes, and the back-office. The refinement I like is preloading on intent: when the user hovers the Book button, we load the modal's chunk. The code arrives before the click, and the latency is never visible.
+
+The trap is that too much splitting produces a waterfall of chunk requests that costs more than the monolith you avoided. And every lazy boundary needs an error boundary with a retry, otherwise a connection that drops while a chunk is loading breaks the application.
+
+Now, time zones, which I think is the most treacherous subject in a scheduling application.
+
+The principle is the studio's local time, always. A class at six in the evening in Barcelona is at six in the evening for everyone. A Paris member browsing should see six. It's a property of the place, not of the observer.
+
+The technical corollary: instants travel in UTC, the studio's timezone travels with the data, rendering happens in that timezone. The device's timezone is only used for relative displays, in two hours, or to warn a member who's travelling.
+
+The traps are nasty. Daylight saving. A recurring class at six local time stays at six after the clocks change, even though its UTC instant moves. So recurrence is defined in local time, not in UTC. Generating occurrences by adding one hundred and sixty-eight hours to a UTC instant produces classes that are off by an hour, twice a year. It's a classic bug, it's embarrassing, and it's hard to diagnose because it only shows up twice a year.
+
+Then there's the hour that doesn't exist, and the hour that exists twice. Going into summer time, two thirty in the morning doesn't exist. Coming out of it, it happens twice. A class scheduled at that moment needs an explicit rule.
+
+And server rendering: the server must not format in its own timezone, otherwise the rendered HTML and the hydration diverge.
+
+On tooling, the Temporal API is designed for this and makes these cases explicit. In the meantime, date-fns-tz or Luxon. I'd avoid hand-manipulating native Date objects for timezone logic.
+
+To put it in one sentence: generating recurring occurrences by adding one hundred and sixty-eight hours in UTC silently shifts every class by an hour, twice a year. Recurrence is defined in local time. That's the one thing I'd make sure is right from day one, because it's cheap now and it's a support nightmare later.
+
+On internationalization. I'd use ICU message format rather than flat keys, because it handles plurals properly. Russian has several forms, Arabic has six. And it handles gender. A naive interpolation like n spots remaining breaks in the singular and in half the languages we'd support.
+
+Formatting goes through the native Intl API for dates, numbers, currencies and lists, rather than hand-rolled tables.
+
+Two things I'd build in early because they're free now and expensive later: CSS logical properties, margin-inline-start rather than margin-left, in case right-to-left ever arrives. And testing the layout in a verbose language rather than English. German is often thirty percent longer, and a button sized around French text breaks.
+
+And one case worth deciding consciously: class descriptions are entered by the studios, so they aren't translated. What does a member who doesn't speak that language see? Often the answer is nothing special, but I'd rather decide that than discover it in production.
+
+On security. Token storage first. Local storage is trivial but it's readable from JavaScript, so it's exfiltratable by any cross-site scripting, including one that comes from a compromised dependency. An httpOnly cookie is inaccessible to JavaScript. The best combination is the access token in memory and the refresh token in an httpOnly cookie, with rotation and reuse detection.
+
+There's a nuance there that I think matters more than the answer. People often say if you have cross-site scripting you've already lost. That's a half-truth. HttpOnly doesn't make cross-site scripting harmless, an attacker can still act inside the session from the page. But it stops them exfiltrating a token to use elsewhere and later, which changes the blast radius and the duration of the compromise. It's defence in depth, not a fix.
+
+In this product specifically, class descriptions are entered by studios, so there's a real injection surface. Systematic sanitization, extreme caution with anything that sets raw HTML, and a strict content security policy.
+
+And multi-tenancy is a security subject as well, which is the point I'd least want to miss: every cache key has to include the studio identifier. Forgetting it doesn't produce a UX bug, it leaks one studio's data into another studio's application. In a business to business to consumer SaaS, that's a major incident.
+
+On payment, card fields stay inside the provider's hosted inputs, so the data never touches my state or my PCI scope.
+
+On accessibility, the scope I'd commit to is WCAG double-A on the critical journeys: browse, book, cancel, pay. Automatable tests in continuous integration, plus a manual audit on those journeys.
+
+Concretely on this screen: focus management in the modal, trapping it and then restoring it to the trigger. The seat selector, which is the hardest piece, as I said. Live regions to announce availability changes, used sparingly, because otherwise the screen reader becomes unusable. Contrast on the tenant theming. And adequate touch target sizes.
+
+The argument I'd use in a planning meeting isn't the moral one. Retrofitting accessibility costs several times more than building it in, because it touches DOM structure, semantics and focus order, not styling. It's a cost argument as much as an ethical one. And on a wellness product, the affected population is overrepresented, not marginal.
+
+On observability and debugging, I'd think about it in four layers.
+
+Errors: tracking with context, tenant, route, version, and source maps, without which minified stack traces are useless.
+
+Real performance: real user monitoring on actual devices, segmented by device type and network, read at the seventy-fifth and ninety-fifth percentile rather than the average. An average hides exactly the users who are suffering.
+
+Traces: a trace identifier propagated from the click all the way to the backend. That lets you follow a failed booking end to end, and it costs one header. It's the debugging lever that changes production life the most.
+
+And business metrics, which are the most important and the most often forgotten.
+
+The booking funnel completion rate is the headline metric. Failure rate by error code: a rise in payment failures is an incident, even if no server went down. Perceived confirmation time, from click to feedback, not API latency. And the optimistic rollback rate, which I like a lot: if spots are being taken between render and click far more often than before, it means your real-time availability is lagging. That's a metric that diagnoses a technical layer through a user-visible symptom.
+
+The point I'd close observability on is this. A frontend can be perfectly healthy, zero JavaScript errors, normal latency, every service green, and completely broken, because a button ended up invisible at one breakpoint or a condition blocked one step of the flow. No technical monitoring catches that. Only funnel completion does. So I'd alert on booking completion rate, not just error rate.
+
+On proof of concept versus production, since that's a trade-off you asked about.
+
+What I'd defer for a proof of concept: full offline support, the real-time channel, server rendering and search indexing, virtualization, exhaustive internationalization, a complete design system.
+
+What I'd never defer: double-booking protection through idempotency, clear typed error states, displaying correct times, never showing a false confirmation, basic security, and keyboard accessibility on the critical journeys.
+
+The criterion behind that line is this. What's deferrable is what I can add later without breaking anything or misleading anyone. What isn't deferrable is anything whose absence produces a lie to the user, or loses the studio money.
+
+And to connect the technical defects to business consequences: a slow or confusing funnel means abandonment, which means attendance drops. A double booking means a dispute, a refund, and lost trust. A phantom spot means a member standing in the room with no machine. A wrong timezone means a missed class. Mishandling the ineligible state means a missed sale. And no offline support means a member stuck at the front desk with no signal.
+
+The posture I'd state on this: a proof of concept narrows scope, it doesn't lower correctness. Reducing what we support is legitimate. Reducing whether it's right isn't.
+
+If you push me on the backend side, here's roughly what I'd say, and where I'd draw the line.
+
+On double booking, the guarantee can't come from the client. The server serializes concurrent writes, with an atomic operation along the lines of decrement if there's capacity left. What I take from that as a frontend engineer is that the server is the source of truth, and my job is to handle its refusal gracefully.
+
+On hold and confirm, if payment takes time, the server places a temporary lock with an expiry, then confirms. Which is where the pending state and the countdown in my interface come from.
+
+On consistency between payment and booking, across two services you'd use a saga, meaning compensable steps: if payment fails after the booking, a compensating action cancels or refunds. And the frontend consequence is direct: confirmation can be asynchronous, so I need a confirming state and a way to learn the outcome, whether that's the real-time channel, polling, or a notification.
+
+On server-side caching, my availability numbers may be served from a cache. So a slightly stale value is normal, which loops right back to availability being a hint rather than a guarantee.
+
+But here's how I'd draw the boundary. The correctness guarantee has to live server-side. I can't prevent double-booking from the client, and I wouldn't try. My job is to make the optimistic path feel instant and the rejection path feel graceful. What I do care about on the API side is that the contract gives me typed reasons, so I can turn each failure into the right experience.
+
+And if you push me on something I genuinely don't know, I'd rather say so. I haven't built that specific piece. Here's how I'd reason about it, and here's who I'd want in the room to validate it.
+
+On timing, if I feel we're running short: I have about fifteen minutes left. I'd rather go deep on one more thing than skim three. Would you prefer real-time reconciliation, or how I'd monitor this in production?
+
+And to summarize where we landed.
+
+I started with a simple client that fetches and books, then hardened it in four directions. Optimistic updates with a client-generated idempotency key, so the app feels instant and retries are safe. Server-sent events for live availability, because the need is one-directional and reconnection comes free. Read-first offline, because the network is bad in venues and what people need there is to show their booking. And typed errors throughout, because three of the failure modes are actually revenue opportunities. The thing I'd want to validate first with your team is the waitlist promotion policy, because that's a product decision that shapes a lot of the interface.
+
+I have a few questions for you, if there's time.
+
+On the technical side: where is the frontend today, is it a monolith, modules, several applications? What hurts the most right now? How do you handle multi-tenant theming currently? Do web and mobile share code, and how far does that go? And who decides API contracts, are the frontend teams involved upstream, or do they receive what already exists?
+
+On the organization: how are the teams split, by feature, by surface, by domain? Is there a frontend platform function, or does each team own its stack? And what would the expected impact be over my first six months?
+
+And on the product: what's the hardest constraint today, is it scale, the variety of studios, or going international?
+
+Thank you, this was a good conversation.
+
