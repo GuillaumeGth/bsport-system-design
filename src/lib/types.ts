@@ -70,4 +70,4 @@ export interface Doc {
   essentials: Essential[]
 }
 
-export type View = 'read' | 'lines' | 'essentials'
+export type View = 'read' | 'lines' | 'essentials' | 'listen'

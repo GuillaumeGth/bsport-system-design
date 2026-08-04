@@ -2,8 +2,16 @@ import { useEffect, useRef } from 'react'
 import { readingMinutes } from '../lib/doc'
 import { phaseOfSection, phaseRange } from '../lib/phases'
 import { useI18n } from '../i18n/useI18n'
+import type { StringKey } from '../i18n/strings'
 import type { Doc, View } from '../lib/types'
 import './Sidebar.css'
+
+const VIEW_LABELS: { id: View; label: StringKey }[] = [
+  { id: 'read', label: 'view.read' },
+  { id: 'lines', label: 'view.lines' },
+  { id: 'essentials', label: 'view.essentials' },
+  { id: 'listen', label: 'view.listen' },
+]
 
 interface SidebarProps {
   doc: Doc
@@ -29,14 +37,14 @@ export function Sidebar({ doc, open, activeSectionId, view, onViewChange, onSele
       {open && <div className="nav__scrim" onClick={onClose} aria-hidden="true" />}
       <aside ref={listRef} className={`nav${open ? ' is-open' : ''}`} aria-label={t('nav.label')}>
         <div className="nav__views">
-          {(['read', 'lines', 'essentials'] as View[]).map((id) => (
+          {VIEW_LABELS.map(({ id, label }) => (
             <button
               key={id}
               type="button"
               className={`nav__view${view === id ? ' is-active' : ''}`}
               onClick={() => onViewChange(id)}
             >
-              {t(id === 'read' ? 'view.read' : id === 'lines' ? 'view.lines' : 'view.essentials')}
+              {t(label)}
             </button>
           ))}
         </div>

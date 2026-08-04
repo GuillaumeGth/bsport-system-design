@@ -13,6 +13,7 @@ function parse(hash: string): Route {
   const path = hash.replace(/^#\/?/, '')
   if (path.startsWith('phrases')) return { view: 'lines', sectionId: '' }
   if (path.startsWith('essentiels')) return { view: 'essentials', sectionId: '' }
+  if (path.startsWith('ecouter')) return { view: 'listen', sectionId: '' }
   const section = /^section\/(.+)$/.exec(path)
   if (section) return { view: 'read', sectionId: decodeURIComponent(section[1]) }
   return DEFAULT_ROUTE
@@ -21,6 +22,7 @@ function parse(hash: string): Route {
 function serialize(route: Route): string {
   if (route.view === 'lines') return '#/phrases'
   if (route.view === 'essentials') return '#/essentiels'
+  if (route.view === 'listen') return '#/ecouter'
   return `#/section/${encodeURIComponent(route.sectionId)}`
 }
 

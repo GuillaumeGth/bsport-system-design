@@ -6,6 +6,7 @@ import { HomeView } from './components/HomeView'
 import { SectionView } from './components/SectionView'
 import { LinesView } from './components/LinesView'
 import { EssentialsView } from './components/EssentialsView'
+import { ListenView } from './components/ListenView'
 import { SearchPalette } from './components/SearchPalette'
 import { useRoute } from './hooks/useRoute'
 import { useRehearsal } from './hooks/useRehearsal'
@@ -118,6 +119,7 @@ function Shell({ locale, onToggleLocale }: { locale: Locale; onToggleLocale: () 
             ))}
           {route.view === 'lines' && <LinesView doc={doc} onSelectSection={goToSection} />}
           {route.view === 'essentials' && <EssentialsView doc={doc} />}
+          {route.view === 'listen' && <ListenView onSelectSection={goToSection} />}
         </main>
       </div>
 

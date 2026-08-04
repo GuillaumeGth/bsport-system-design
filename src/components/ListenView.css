@@ -1,0 +1,230 @@
+.listen {
+  display: grid;
+  gap: var(--s-6);
+  max-width: 62ch;
+}
+
+.listen__head {
+  display: grid;
+  gap: var(--s-3);
+}
+
+.listen__title {
+  font-size: var(--step-4);
+}
+
+.listen__sub {
+  color: var(--ink-soft);
+}
+
+/* Le lecteur est traité en inversion, comme les phrases à dire : c'est le même
+   registre — de la parole, pas du document. */
+.listen__player {
+  display: grid;
+  gap: var(--s-3);
+  padding: var(--s-5);
+  border-radius: 12px;
+  background: var(--slab);
+  color: var(--slab-ink);
+  box-shadow: var(--shadow-md);
+}
+
+.listen__now {
+  display: grid;
+  gap: var(--s-1);
+}
+
+.listen__now .u-kicker {
+  color: var(--slab-faint);
+}
+
+.listen__now strong {
+  font-family: var(--font-display);
+  font-size: var(--step-1);
+  font-variation-settings: var(--wide);
+}
+
+.listen__seek {
+  width: 100%;
+  height: 4px;
+  border-radius: 999px;
+  appearance: none;
+  background: color-mix(in srgb, var(--slab-ink) 22%, transparent);
+  cursor: pointer;
+}
+
+.listen__seek::-webkit-slider-thumb {
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border: none;
+  border-radius: 50%;
+  background: var(--slab-ink);
+}
+
+.listen__seek::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: none;
+  border-radius: 50%;
+  background: var(--slab-ink);
+}
+
+.listen__seek:focus-visible {
+  outline: 2px solid var(--slab-ink);
+  outline-offset: 4px;
+}
+
+.listen__times {
+  display: flex;
+  justify-content: space-between;
+  color: var(--slab-faint);
+  font-size: var(--step--1);
+  font-variant-numeric: tabular-nums;
+}
+
+.listen__controls {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  flex-wrap: wrap;
+}
+
+.listen__play {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--slab-ink);
+  color: var(--slab);
+}
+
+.listen__skip {
+  color: var(--slab-faint);
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  padding: var(--s-2);
+}
+
+.listen__skip:hover,
+.listen__speedBtn:hover {
+  color: var(--slab-ink);
+}
+
+.listen__speed {
+  display: flex;
+  gap: var(--s-1);
+  margin-inline-start: auto;
+}
+
+.listen__speedBtn {
+  padding: var(--s-1) var(--s-2);
+  border-radius: 6px;
+  color: var(--slab-faint);
+  font-size: var(--step--1);
+}
+
+.listen__speedBtn.is-on {
+  background: color-mix(in srgb, var(--slab-ink) 16%, transparent);
+  color: var(--slab-ink);
+}
+
+.listen__error {
+  padding: var(--s-4);
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  color: var(--ink-soft);
+}
+
+.listen__chaptersTitle {
+  font-family: var(--font-display);
+  font-size: var(--step-1);
+  font-variation-settings: var(--wide);
+}
+
+.listen__chapters {
+  display: grid;
+  gap: 1px;
+  background: var(--rule-soft);
+  border-block: 1px solid var(--rule-soft);
+  list-style: none;
+  padding: 0;
+}
+
+.chapter {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  background: var(--paper);
+  padding-inline-end: var(--s-3);
+}
+
+.chapter.is-current {
+  background: var(--accent-wash);
+}
+
+.chapter__jump {
+  flex: 1;
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-3);
+  padding: var(--s-3);
+  text-align: start;
+}
+
+.chapter__time {
+  color: var(--ink-faint);
+  font-size: var(--step--1);
+  font-variant-numeric: tabular-nums;
+  min-width: 4.5ch;
+}
+
+.chapter.is-current .chapter__time {
+  color: var(--accent);
+}
+
+.chapter__title {
+  color: var(--ink);
+}
+
+.chapter__jump:hover .chapter__title {
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.chapter__sections {
+  display: flex;
+  gap: var(--s-1);
+}
+
+.chapter__section {
+  padding: var(--s-1) var(--s-2);
+  border-radius: 6px;
+  background: var(--surface-sunken);
+  color: var(--ink-faint);
+  font-size: var(--step--1);
+}
+
+.chapter__section:hover {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.listen__download a {
+  color: var(--ink-faint);
+  font-size: var(--step--1);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.listen__download a:hover {
+  color: var(--ink);
+}
+
+@media (max-width: 32rem) {
+  .listen__speed {
+    margin-inline-start: 0;
+    width: 100%;
+  }
+}

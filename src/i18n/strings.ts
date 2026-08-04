@@ -15,6 +15,8 @@ export const STRINGS = {
     'view.lines.hint': 'Les formulations à dire à voix haute',
     'view.essentials': '10 essentiels',
     'view.essentials.hint': 'La checklist de clôture',
+    'view.listen': 'Écouter',
+    'view.listen.hint': 'Le script parlé, en anglais, chapitré',
 
     'nav.open': 'Ouvrir le sommaire',
     'nav.label': 'Sommaire',
@@ -75,6 +77,24 @@ export const STRINGS = {
     'essentials.clear': 'Réinitialiser',
     'essentials.closing':
       'Tu as le niveau et l’expérience. À ce stade, ce qui se joue est la mise en récit — la capacité à rendre visible un raisonnement que tu fais déjà.',
+
+    'listen.kicker': 'Le script parlé',
+    'listen.title': "L'entretien dit à voix haute",
+    'listen.sub':
+      'Les 90 minutes récitées en anglais, dans l’ordre. Synthèse vocale Gemini, voix Kore, accent britannique neutre. Clique un chapitre pour t’y placer.',
+    'listen.chapters': 'Chapitres',
+    'listen.download': 'Télécharger le fichier (42 Mo)',
+    'listen.readAlong': 'Lire la section',
+    'listen.playing': 'En cours',
+    'listen.play': 'Lecture',
+    'listen.pause': 'Pause',
+    'listen.back': 'Reculer de 15 secondes',
+    'listen.forward': 'Avancer de 15 secondes',
+    'listen.speed': 'Vitesse',
+    'listen.seek': 'Position dans l’enregistrement',
+    'listen.loading': 'Chargement…',
+    'listen.unsupported':
+      'Ton navigateur ne parvient pas à lire ce fichier. Télécharge-le pour l’écouter hors du site.',
   },
   en: {
     'app.title': 'bsport system design — the full walkthrough',
@@ -87,6 +107,8 @@ export const STRINGS = {
     'view.lines.hint': 'The sentences to say out loud',
     'view.essentials': '10 essentials',
     'view.essentials.hint': 'The closing checklist',
+    'view.listen': 'Listen',
+    'view.listen.hint': 'The spoken script, in English, with chapters',
 
     'nav.open': 'Open the contents',
     'nav.label': 'Contents',
@@ -147,6 +169,24 @@ export const STRINGS = {
     'essentials.clear': 'Reset',
     'essentials.closing':
       'You have the level and the experience. What is at stake now is the storytelling — making visible a line of reasoning you already follow.',
+
+    'listen.kicker': 'The spoken script',
+    'listen.title': 'The interview, said out loud',
+    'listen.sub':
+      'The ninety minutes recited in English, in order. Gemini speech synthesis, Kore voice, neutral British accent. Click a chapter to jump there.',
+    'listen.chapters': 'Chapters',
+    'listen.download': 'Download the file (42 MB)',
+    'listen.readAlong': 'Read the section',
+    'listen.playing': 'Playing',
+    'listen.play': 'Play',
+    'listen.pause': 'Pause',
+    'listen.back': 'Back fifteen seconds',
+    'listen.forward': 'Forward fifteen seconds',
+    'listen.speed': 'Speed',
+    'listen.seek': 'Position in the recording',
+    'listen.loading': 'Loading…',
+    'listen.unsupported':
+      'Your browser cannot play this file. Download it to listen outside the site.',
   },
 } as const
 

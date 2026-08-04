@@ -8,6 +8,7 @@ const VIEWS: { id: View; label: StringKey; hint: StringKey }[] = [
   { id: 'read', label: 'view.read', hint: 'view.read.hint' },
   { id: 'lines', label: 'view.lines', hint: 'view.lines.hint' },
   { id: 'essentials', label: 'view.essentials', hint: 'view.essentials.hint' },
+  { id: 'listen', label: 'view.listen', hint: 'view.listen.hint' },
 ]
 
 interface TopBarProps {
