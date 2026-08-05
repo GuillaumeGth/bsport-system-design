@@ -1,0 +1,23 @@
+Sur le compteur lui-même, dérivé ou matérialisé. Dérivé, c'est-à-dire compter les réservations à chaque lecture, est toujours exact et impossible à désynchroniser, mais coûteux quand le planning est lu massivement. Matérialisé, c'est-à-dire un compteur sur la session mis à jour à chaque écriture, est instantané en lecture, et c'est aussi ce compteur qui porte l'invariant de non-surréservation côté serveur. En contrepartie il peut dériver en cas de bug, donc il faut une réconciliation périodique. Vu le rapport lecture-écriture qu'on a établi, des centaines de lectures pour une écriture, je pars sur matérialisé.
+
+Et il y a trois états, pas deux. Libre, c'est-à-dire aucune occupation. Verrouillée, un verrou temporaire avec expiration, ce qui veut dire que quelqu'un est en train de payer. Et réservée, une réservation confirmée.
+
+Sans l'état verrouillée, on se retrouve devant un choix impossible. Soit on réserve dès le clic, et un paiement abandonné bloque la place indéfiniment. Soit on ne réserve qu'après paiement, et deux personnes peuvent payer pour la même place. Un verrou avec expiration résout ça, et c'est exactement ce qui explique l'état en attente de la réservation et le compte à rebours dans l'interface.
+
+À ça s'ajoutent des indisponibilités qui ne viennent pas des membres : une machine en panne, une place réservée au personnel.
+
+[medium pause] Et voici le principe qui gouverne tout le reste. Quel que soit le nombre de places restantes que le serveur me donne, c'est une indication, pas une garantie. Ça peut venir d'un cache, ça peut avoir deux cents millisecondes de retard, et quelqu'un peut être en train de payer la dernière place. Le seul moment où la vérité existe, c'est la réponse à la requête de réservation.
+
+[medium pause] Ce qui veut dire que le chemin de refus n'est pas un cas limite que je traite à la fin. C'est un chemin nominal que je conçois dès le départ. La place vient d'être prise, voici trois alternatives, doit être aussi soigné que l'écran de succès.
+
+[long pause] Parlons du contrat d'API, parce que je ne pense pas qu'un ingénieur frontend doive en être un consommateur passif. Je le négocierais, et j'ai quatre arguments à apporter.
+
+Premièrement, les réponses enrichies. Est-ce que le serveur renvoie des sessions avec la discipline, le professeur, les places restantes et l'éligibilité déjà incluses, ou des références qu'il faut aller chercher séparément ?
+
+Normalisé donne une charge utile compacte mais provoque une cascade. Les sessions, puis les professeurs, puis les disciplines. Chaque saut coûte un aller-retour. Enrichi donne une charge plus grosse avec de la duplication, le même professeur répété quarante fois, mais un seul aller-retour.
+
+Le critère qui tranche, c'est le coût d'un aller-retour sur le réseau cible. Sur une connexion mobile médiocre en sous-sol, chaque saut coûte entre cent et trois cents millisecondes. Trois sauts en cascade, c'est une seconde d'écran vide.
+
+[medium pause] Donc : j'optimise les allers-retours, pas la taille de la charge utile. Dupliquer un professeur quarante fois coûte quelques kilo-octets après compression. Une cascade supplémentaire coûte des centaines de millisecondes d'écran vide. La bande passante est abondante, la latence ne l'est pas.
+
+[short pause] Deuxièmement, l'éligibilité. Qui calcule si ce membre peut réserver ce cours ?

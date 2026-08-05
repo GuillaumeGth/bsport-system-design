@@ -1,0 +1,19 @@
+Quel niveau d'accessibilité est-ce qu'on s'engage à tenir ? En Europe, sur un produit grand public, il y a désormais une dimension réglementaire avec l'European Accessibility Act, pas seulement éthique. Et sur un produit de bien-être en particulier, la population concernée, les personnes âgées, les personnes en rééducation, est surreprésentée, pas marginale.
+
+Combien de langues, et est-ce que les membres voyagent entre studios ? Parce que ça nous amène directement aux fuseaux horaires, et dans une application de planning c'est l'un des rares domaines où se tromper d'une seule heure détruit complètement la fonctionnalité.
+
+Une dernière question, sur le hors ligne. Est-ce que l'application mobile doit fonctionner sans connexion ? Je demande parce que ça change beaucoup de choses. Si c'est de la consultation seule, un cache suffit. Si on veut que les gens réservent hors ligne, il faut une file d'actions, une stratégie d'ordonnancement, une résolution de conflits, et surtout il faut décider ce qu'on promet à l'utilisateur, parce qu'on ne peut pas lui garantir une place sans serveur.
+
+Mettons aussi quelques chiffres, même approximatifs, parce que je préfère raisonner en quantités qu'en abstractions.
+
+Combien de créneaux à l'écran en même temps ? Une journée de cours dans un studio, c'est une vingtaine de cartes. Un mois sur plusieurs studios, c'est des milliers. Cette seule réponse décide si la virtualisation est nécessaire ou si elle serait de la sur-ingénierie, donc je préfère la trancher maintenant plutôt que d'en débattre plus tard.
+
+Quel est le rapport entre lectures et écritures ? Je m'attends à ce qu'il soit massivement déséquilibré. Un planning est consulté des centaines de fois pour une seule réservation. C'est structurant, parce que ça pousse vers un cache agressif en lecture et un chemin d'écriture soigné, plutôt que l'inverse.
+
+Et comment la charge se répartit-elle dans le temps ? Je suppose qu'elle n'est pas uniforme, mais en pics. Quand un studio ouvre ses réservations pour la semaine, des centaines de personnes se ruent sur les mêmes cours à la même seconde. Ça a deux conséquences directes côté frontend. C'est exactement le moment où les conflits de réservation deviennent probables, et c'est exactement le moment où une interface optimiste risque le plus de mentir à l'utilisateur.
+
+[medium pause] Voilà donc ce que je suppose. Application côté membre, web et mobile, un studio à la fois, une vingtaine de cours visibles simultanément, la disponibilité temps réel compte, le réseau n'est pas fiable dans les salles, et il y a de l'argent dans le flux à travers les packs de crédits. Dites-moi si quelque chose est faux. Ces hypothèses sont ce qui pilote ma stratégie de rendu, mon cache, et jusqu'où je vais sur le hors ligne.
+
+Une dernière chose que je veux nommer avant d'avancer, parce qu'elle va orienter des questions que je poserai plus tard. Nous sommes dans du business to business to consumer. Le client qui paie est le studio, l'utilisateur final est le membre, et leurs intérêts ne coïncident pas toujours. Le studio veut remplir ses cours, le membre veut de la flexibilité. Cette tension se manifeste très concrètement dans la politique de liste d'attente et dans les pénalités de non-présentation, et quand ce sera le cas, je préfère vous poser la question que trancher unilatéralement.
+
+[long pause] Bien. Laissez-moi commencer par la version la plus simple qui fonctionne vraiment, et je vous montrerai ensuite où elle casse et ce que j'ajouterais. Je trouve ça plus facile à challenger qu'une architecture livrée complète.

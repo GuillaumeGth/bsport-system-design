@@ -1,0 +1,21 @@
+RTK Query est le bon choix exactement quand ça en a l'air : quand Redux Toolkit est déjà là. Elle élimine le code répétitif des thunks, rend l'invalidation déclarative par étiquettes, et donne le débogage par voyage dans le temps. Contre elle : elle exige Redux, impose beaucoup de concepts spécifiques, ses définitions sont verbeuses, et le poids cumulé est conséquent.
+
+Deux questions tranchent. Redux est-il déjà là, et quelle est la complexité des mutations ?
+
+Si l'application tourne déjà sur Redux, je pars sur RTK Query. Ajouter TanStack Query à côté, ça veut dire deux paradigmes de données concurrents dans une même base de code, et c'est un coût réel de maintenance et d'intégration des nouveaux arrivants, que j'ai vu se matérialiser. Sur un projet neuf sans Redux, TanStack Query : meilleure ergonomie d'invalidation et meilleurs outils, sans payer la taxe Redux. Et je n'adopterais jamais Redux uniquement pour obtenir RTK Query.
+
+Ce que je soulignerais, c'est que la décision est pilotée par la complexité des mutations, pas par les lectures. Les trois mettent en cache une liste de cours très correctement. C'est ce tunnel de réservation, mise à jour optimiste, retour arrière en cas de conflit, nouvelle tentative idempotente, réconciliation avec un événement en direct, qui les sépare.
+
+Dans le même ordre d'idées, le cache document face au cache normalisé. Ces trois librairies stockent des réponses entières sous une clé. La même entité peut donc exister en plusieurs copies. Le cours quarante-deux est dans le planning, dans mes réservations, et dans l'écran de détail. J'annule depuis l'écran de détail, et les deux autres mentent jusqu'à leur revalidation.
+
+Un cache normalisé, comme Apollo ou Relay, stocke les entités à plat par identifiant, et les vues n'en tiennent que des références. Une mise à jour se propage partout instantanément. Mais ça coûte : il faut des identifiants globaux fiables, un ramasse-miettes, et les listes doivent quand même être invalidées séparément, parce qu'une nouvelle entité n'apparaît pas magiquement dans une liste.
+
+Ma réponse, c'est un cache document avec une discipline d'invalidation. Concrètement, structurer les clés de requête de façon hiérarchique, sessions puis studio puis date, pour pouvoir invalider par préfixe après une mutation.
+
+Et si cette douleur grandissait, si l'application devenait vraiment un graphe et que les copies périmées commençaient à causer de vrais bugs, c'est précisément là que GraphQL avec Apollo justifierait sa complexité. Son cache normalisé est ce qu'il a de meilleur. Mais je ne l'achèterais pas d'emblée.
+
+Un dernier point sur le cache : la fraîcheur par type de donnée, parce qu'une valeur globale unique est toujours un mauvais compromis. Le plan de salle peut être caché pendant des heures, il ne change qu'en cas de réaménagement. Les disciplines et les professeurs, environ une heure, c'est quasi statique. La structure du planning, quelques minutes. La disponibilité, zéro, avec un canal temps réel par-dessus, parce qu'elle change à la seconde. Et mon profil et mes crédits sont invalidés après une mutation, parce qu'ils changent quand j'agis.
+
+[medium pause] Un temps de péremption par type de donnée, pas une valeur globale unique. Trop court et je martèle l'API. Trop long et j'affiche des places fantômes.
+
+[long pause] Passons aux états de l'interface, et je veux distinguer deux niveaux, parce que la plupart des conceptions n'en voient qu'un.

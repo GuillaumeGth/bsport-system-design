@@ -1,0 +1,31 @@
+There's a second, subtler point about these states: some of them expire on their own. At one minute to six, cancellation is free. At one minute past six, it isn't, and no server message told you. It's a rare case, data that becomes false purely through the passage of time. The consequence is that you need either a timer that recomputes at the deadline, or revalidation when the window regains focus, or, most importantly, a recheck at the moment of the action. Never authorize a free cancellation on the strength of a state rendered ten minutes ago.
+
+And on the journey itself, I'd model it as an explicit state machine. Idle, then confirming, which shows the recap: class, instructor, time, cost. From there, selecting a seat if the class has assigned spots. Paying if it isn't covered by the pack. Submitting, which is where the optimistic update already shows the result. Then success, with confirmation and add-to-calendar. Or failed, with a typed reason: seat taken sends me back to the selector, session full offers the waitlist, payment failed offers another method, and a network failure retries automatically with the same key.
+
+The trade-off there is state machine versus booleans. Five booleans, is-loading, is-error, is-success, has-seat, is-paying, give you thirty-two combinations, the vast majority of which are impossible but still representable. And anything representable is reachable by a bug. On top of that the rendering logic becomes a cascade of nested conditions nobody dares refactor.
+
+A discriminated union makes impossible states unrepresentable, forces TypeScript to handle every case, and keeps state-specific data inside the state it belongs to. The failure reason only exists in the failed state, so you can't accidentally read it anywhere else.
+
+A formal state machine library like XState adds transition validation and visualization, at the cost of a dependency and a learning curve.
+
+My answer is a discriminated union in TypeScript, with no dependency. You get most of the guarantee for zero cost. XState if the graph genuinely becomes complex, with parallel states, nested states, history.
+
+[medium pause] So: a discriminated union rather than a handful of booleans. Five booleans give you thirty-two combinations, most of which are impossible but still representable, so a bug can reach them. With a union, impossible states are unrepresentable and the compiler forces me to handle every case.
+
+[long pause] Let me go deep on the booking flow now, because I think it's the heart of this design.
+
+Here's the full sequence, following the data.
+
+Step one, the click. An idempotency key is generated. A UUID, generated on the click, not at the moment the request is sent. That distinction is the subtlest point in the whole flow, and I'll explain why in a second.
+
+[short pause] Step two, the optimistic update. We take a snapshot of the current cache state, decrement spots remaining, and the card moves to pending. The user sees the result immediately.
+
+[short pause] Step three, the request goes out with the key in a header.
+
+[short pause] Step four, success. We write the response into the cache, then invalidate the related keys, the session, my bookings, my pack, so everything resynchronizes in the background. The card becomes booked by me.
+
+[short pause] Or step four, business failure, say session full. We roll back to the snapshot, the card becomes full, and we offer the waitlist. The failure is explained, never silent.
+
+[short pause] Or step four, network failure. We retry with increasing delay, reusing the same key. No double booking is possible.
+
+[short pause] And step five, in parallel, a real-time event may modify that same session. Reconciliation has to apply it without overwriting the in-flight optimistic mutation.

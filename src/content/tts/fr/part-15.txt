@@ -1,0 +1,23 @@
+Générée par le client au moment de la requête : cassé, et c'est l'erreur classique. Chaque nouvelle tentative génère une nouvelle clé, donc chaque tentative crée une nouvelle réservation. On a l'impression d'avoir résolu le problème et on ne l'a pas touché.
+
+Générée par le client au moment de l'intention, c'est-à-dire au clic : correct. La même clé est réutilisée pour toutes les tentatives qui appartiennent à cette intention.
+
+[medium pause] Et c'est exactement pour ça que c'est une responsabilité frontend. La clé est liée à l'intention de l'utilisateur, pas à la requête HTTP. Seul le client sait que cette nouvelle tentative est la continuation du même clic. Le serveur ne peut pas le déduire.
+
+Ça couvre trois scénarios d'un coup : le double appui impatient, la nouvelle tentative automatique après expiration, et la resynchronisation d'une action mise en file hors ligne il y a une heure.
+
+Il y a une question plus subtile, celle de savoir quand régénérer la clé. Si l'utilisateur reçoit session complète, rejoint la liste d'attente, puis qu'une place se libère et qu'il réserve à nouveau, c'est une nouvelle intention, donc une nouvelle clé. Réutiliser l'ancienne ferait rejouer l'ancien échec par le serveur. La règle est : une clé par intention, et une nouvelle intention chaque fois que l'utilisateur reprend une décision.
+
+Et un corollaire de portée : la clé doit couvrir la réservation et le paiement associé ensemble. Sinon on protège d'une double réservation mais pas d'un double débit.
+
+Sur les nouvelles tentatives, que retenter et que ne jamais retenter.
+
+Une expiration ou une erreur réseau : oui, avec un délai croissant et de l'aléatoire, parce que c'est transitoire et que l'issue est inconnue. Les erreurs serveur dans les cinq cents : oui, de façon bornée, c'est probablement transitoire. Une réponse de limitation de débit : oui, en respectant l'en-tête qui indique le délai, parce que le serveur vous a dit quoi faire. Une erreur métier dans les quatre cents : non, retenter ne changera rien. Une réponse non autorisée : non, c'est un rafraîchissement de jeton suivi d'un rejeu, ce qui est une réauthentification, pas une nouvelle tentative. Et toute mutation sans clé d'idempotence : non, parce qu'on génèrerait des doublons.
+
+Sur les paramètres. Un délai exponentiel, une seconde, deux, quatre, évite de marteler un serveur qui souffre déjà. L'aléatoire ajouté au délai est indispensable et souvent oublié. Sans lui, tous les clients retentent au même instant et achèvent le serveur exactement au moment où il commence à se relever. Ensuite une borne, trois tentatives, après quoi on rend la main à l'utilisateur avec un bouton explicite. Et une expiration sur chaque tentative, parce qu'un appel réseau sans expiration est un bug qui attend son heure.
+
+[medium pause] Le lien entre les deux sujets, je l'énoncerais explicitement : les nouvelles tentatives et l'idempotence ne sont pas deux sujets, c'en est un seul. Je ne retente automatiquement que des opérations idempotentes. Une nouvelle tentative silencieuse sur une mutation non idempotente est un générateur de doublons.
+
+Il y a aussi un point d'expérience utilisateur. Ne pas retenter en silence pendant dix secondes pendant que l'utilisateur fixe un indicateur sans explication. Au bout de quelques secondes, dire ce qui se passe.
+
+Et sur la prévention du double envoi, je la décrirais en quatre couches. L'interface désactive le bouton, ce qui est nécessaire et très insuffisant. Le client déduplique les mutations en vol. Le protocole porte la clé d'idempotence, et c'est là la vraie protection. Et le serveur impose une contrainte d'unicité en base, qui est le filet de sécurité ultime.

@@ -1,0 +1,31 @@
+[medium pause] Et voici le point que je défendrais vraiment. La réservation hors ligne est séduisante techniquement et honnêtement discutable en valeur. Je promettrais une place que je ne peux pas garantir. Le membre croit avoir réservé, il se déplace, et il n'y a pas de vélo. Une fonctionnalité qui échoue en silence est pire que son absence. Si on la construisait quand même, l'interface doit dire en attente de confirmation, jamais confirmé.
+
+Si on implémentait quand même l'écriture en file, voici les règles qui déterminent si c'est bon ou non.
+
+L'ordre : rejouer les actions dans l'ordre où elles ont été émises. Réserver puis annuler n'est pas la même chose qu'annuler puis réserver.
+
+L'expiration : une action en file pour un cours déjà passé doit être abandonnée, pas rejouée. Sinon on réserve le cours d'hier.
+
+La compaction : réserver puis annuler avant la resynchronisation devrait s'annuler localement, plutôt que de produire deux appels d'API.
+
+L'idempotence : la clé générée hors ligne protège du doublon si l'action avait en fait réussi avant la coupure.
+
+La notification : si l'utilisateur a fermé l'application, il doit apprendre le résultat autrement. Une notification poussée, ou un état sans ambiguïté à la réouverture.
+
+Et la résolution de conflit : le serveur gagne, sans hésitation. Une place est une ressource exclusive, il n'y a rien à fusionner. Les structures de données répliquées sans conflit sont le mauvais outil ici, et savoir le dire, c'est connaître l'outil et son domaine d'application.
+
+Sur le service worker, j'utiliserais une stratégie par type de ressource plutôt qu'une politique globale. Les fichiers versionnés et les polices, cache d'abord. Le squelette de l'application, cache d'abord avec mise à jour en arrière-plan. Le plan de salle et les disciplines, servir le cache puis revalider. Le planning, réseau d'abord avec repli sur le cache. La disponibilité, réseau uniquement. Les mutations et le paiement, réseau uniquement.
+
+Le piège classique ici est douloureux : un service worker bloqué sur une vieille version. Un service worker mal géré sert indéfiniment une application périmée, et vos utilisateurs ne voient jamais vos correctifs. Il faut une stratégie de mise à jour explicite. Détecter la nouvelle version, et soit inviter au rechargement, soit activer immédiatement, en sachant qu'une activation immédiate peut casser une session en cours si les fichiers changent sous les pieds de l'application.
+
+Et sur le stockage, IndexedDB pour la file d'actions, parce qu'il est asynchrone et transactionnel. Le stockage local est synchrone, donc il bloque le fil principal, et une file corrompue est pire qu'une absence de file. Les jetons restent en mémoire. Trois choses que je prévoirais : le versionnement du schéma avec migration, la purge à la déconnexion, surtout sur un appareil partagé, et le fait que le navigateur peut évincer le stockage sous pression, donc l'application doit fonctionner sans.
+
+[long pause] Sur la stratégie de rendu, je déciderais par surface.
+
+Les plannings publics et les pages studio : génération statique avec revalidation incrémentale. Indexable, identique pour tout le monde, premier affichage rapide.
+
+Une page de détail de cours partageable : rendu serveur. Indexable, mais avec des données fraîches.
+
+L'application membre elle-même : rendu client. Personnalisée, pas de besoin de référencement, très interactive.
+
+Les trois questions qui tranchent, dans l'ordre : le contenu est-il public et indexable, est-il personnalisé, et à quelle fréquence change-t-il ?

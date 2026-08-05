@@ -81,9 +81,9 @@ export const STRINGS = {
     'listen.kicker': 'Le script parlé',
     'listen.title': "L'entretien dit à voix haute",
     'listen.sub':
-      'Les 90 minutes récitées en anglais, dans l’ordre. Synthèse vocale Gemini, voix Kore, accent britannique neutre. Clique un chapitre pour t’y placer.',
+      'Les 90 minutes récitées dans l’ordre, en français ici et en anglais si tu bascules la langue. Synthèse vocale Gemini, voix Kore. Clique un chapitre pour t’y placer.',
     'listen.chapters': 'Chapitres',
-    'listen.download': 'Télécharger le fichier (42 Mo)',
+    'listen.download': 'Télécharger l’enregistrement',
     'listen.readAlong': 'Lire la section',
     'listen.playing': 'En cours',
     'listen.play': 'Lecture',
@@ -173,9 +173,9 @@ export const STRINGS = {
     'listen.kicker': 'The spoken script',
     'listen.title': 'The interview, said out loud',
     'listen.sub':
-      'The ninety minutes recited in English, in order. Gemini speech synthesis, Kore voice, neutral British accent. Click a chapter to jump there.',
+      'The ninety minutes recited in order, in English here and in French if you switch the language. Gemini speech synthesis, Kore voice. Click a chapter to jump there.',
     'listen.chapters': 'Chapters',
-    'listen.download': 'Download the file (42 MB)',
+    'listen.download': 'Download the recording',
     'listen.readAlong': 'Read the section',
     'listen.playing': 'Playing',
     'listen.play': 'Play',

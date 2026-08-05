@@ -1,0 +1,25 @@
+[long pause] Ensuite, où vit l'état. Je le séparerais en quatre familles, parce que je pense que cette séparation est ce qui garde une application cliente maintenable.
+
+L'état serveur : les sessions, la disponibilité, les places, mes réservations, mon pack, le plan de salle. Je ne le possède pas, il peut être périmé, il se revalide, il se nettoie tout seul.
+
+L'état d'interface local : l'ouverture d'une modale, la place survolée, l'étape du parcours, la position de défilement. Éphémère, non partagé, il meurt avec le composant.
+
+L'état client global : la session d'authentification, le thème du tenant, la locale, le statut réseau, la file d'actions hors ligne. Transverse, persistant, peu de consommateurs mais dispersés.
+
+Et l'état d'URL : la date, les filtres, le cours sélectionné. Partageable, mettable en favori, il survit à un rechargement.
+
+Le critère qui range chaque chose dans l'une de ces quatre familles, c'est la portée et le cycle de vie. Qui en a besoin, et quand est-ce que ça meurt.
+
+[medium pause] L'erreur classique, c'est de mettre les données serveur dans Redux. Elles ont un cycle de vie complètement différent, mise en cache, péremption, revalidation en arrière-plan, nettoyage, et on finit par réimplémenter tout ça à la main dans des reducers. Je garde le store global pour l'état client transverse et pour la file hors ligne.
+
+Et il y a une erreur symétrique, qu'on cite moins souvent : tout colocaliser puis faire redescendre par propriétés sur cinq niveaux. La règle que j'applique, c'est colocaliser par défaut, remonter quand c'est prouvé nécessaire, et préférer la composition par enfants au passage de propriétés en cascade.
+
+Sur l'URL précisément. Studio quarante-deux, planning, date, discipline yoga. La date et les filtres vivent dans l'URL, parce qu'un membre veut envoyer viens à ce cours à un ami, veut que le bouton retour fonctionne après avoir ouvert un cours, et veut retrouver ses filtres après un rechargement.
+
+Et il y a un piège qui mérite d'être mentionné. Si la modale de réservation s'ouvre sans toucher à l'URL, le bouton retour d'Android quitte l'application au lieu de fermer la modale. C'est l'un des motifs de désinstallation les plus classiques sur mobile, et c'est complètement invisible quand on développe sur un écran de bureau.
+
+Sur la librairie de récupération de données. TanStack Query, SWR et RTK Query donnent tous la mise en cache, la déduplication des requêtes, la revalidation en arrière-plan, le stale-while-revalidate, et les états de chargement et d'erreur. Sans l'une d'elles, on réimplémente tout ça, mal. Et aucune des trois ne fait de cache normalisé automatique, ce qui est une limite sur laquelle je reviens.
+
+TanStack Query est la plus complète. Mutations, mises à jour optimistes avec retour arrière intégré, préchargement, rendu serveur avec un contrôle fin, les meilleurs outils de développement, la plus large communauté. Contre elle : trois fois le poids de SWR, plus de concepts à maîtriser, le temps de péremption face au temps de nettoyage, le partage structurel, et une version cinq qui a introduit des ruptures.
+
+SWR assume le minimalisme. Environ quatre kilo-octets, très élégante avec Next.js. Sur une application dominée par la lecture, la simplicité est une fonctionnalité, pas une limite. Contre elle : on plafonne dès que les mutations se complexifient, l'invalidation est manuelle, et il n'y a pas de vraie notion de temps de péremption ni de revalidation conditionnelle.

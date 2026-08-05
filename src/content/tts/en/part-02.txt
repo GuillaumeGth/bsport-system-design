@@ -1,0 +1,33 @@
+And one more, on offline. Does the mobile app need to work without a connection? I'm asking because it changes a lot. If it's read-only consultation, a cache is enough. If we want people to book offline, we need an action queue, an ordering strategy, conflict resolution, and above all we need to decide what we promise the user, because we cannot guarantee them a spot without the server.
+
+Let me also put some numbers on this, even rough ones, because I'd rather reason in quantities than in abstractions.
+
+How many slots are on screen at once? A day of classes at one studio is around twenty cards. A month across studios is thousands. That single answer decides whether virtualization is necessary or whether it would be over-engineering, so I'd like it settled now rather than argued later.
+
+What's the read to write ratio? I'd expect it to be massively unbalanced. A schedule gets read hundreds of times for every booking. That's structural, because it pushes me toward aggressive read caching and a carefully designed write path, rather than the opposite.
+
+And how is load distributed over time? I'd assume it isn't uniform, it's spiky. When a studio opens bookings for the week, hundreds of people hit the same classes in the same second. That has two direct frontend consequences. It's exactly when booking conflicts become likely, and it's exactly when an optimistic interface is most at risk of lying to the user.
+
+[medium pause] So here's what I'm assuming. Member-facing app, web and mobile, one studio at a time, roughly twenty classes visible at once, real-time availability matters, the network is unreliable in the venues, and there's money in the flow through credit packs. Tell me if any of that is wrong. Those assumptions are what drive my rendering strategy, my caching, and how far I go on offline.
+
+One last thing I want to name before I move on, because it will shape questions I ask later. This is business to business to consumer. The customer who pays is the studio, the end user is the member, and their interests don't always align. The studio wants classes full, the member wants flexibility. That tension shows up very concretely in the waitlist policy and in no-show penalties, and when it does, I'd rather ask you than decide unilaterally.
+
+[long pause] Right. Let me start with the simplest version that actually works, and then I'll show you where it breaks and what I'd add. I find that easier to challenge than a fully-loaded architecture.
+
+The first version is a client application talking to a REST API. It fetches the list of sessions for a studio and a date range, renders them, and when the user taps Book, it sends a request and updates the screen with the response. Loading, error and empty states are handled. That's it. No real-time channel, no offline support, no optimistic updates, no state machine.
+
+[medium pause] This works, and honestly, for a pilot with a single studio, it might be enough. But there are four things that will break.
+
+First, availability goes stale the moment it's rendered. Someone else books while you're looking at the screen.
+
+Second, every click waits for a round-trip, which on a bad connection feels broken.
+
+Third, if the network drops mid-request, we don't know whether the booking happened, and a retry could double-book.
+
+Fourth, nothing tells us when it's failing in production.
+
+Those four are what I want to dig into. Real time, perceived latency, idempotency, and observability.
+
+[long pause] Now let me build it up properly. I'll draw layers rather than a cloud of boxes joined by arrows, because layers make the dependencies explicit.
+
+At the top, UI components. Rendering, interaction, accessibility.

@@ -1,0 +1,21 @@
+[medium pause] En une phrase : générer les occurrences récurrentes en ajoutant cent soixante-huit heures en temps universel décale silencieusement chaque cours d'une heure, deux fois par an. La récurrence se définit en heure locale. C'est la chose que je m'assurerais de faire correctement dès le premier jour, parce que c'est peu coûteux maintenant et que c'est un cauchemar de support plus tard.
+
+Sur l'internationalisation. J'utiliserais le format de message ICU plutôt que des clés plates, parce qu'il gère correctement les pluriels. Le russe a plusieurs formes, l'arabe en a six. Et il gère le genre. Une interpolation naïve du type tant de places restantes casse au singulier et dans la moitié des langues qu'on voudrait supporter.
+
+Le formatage passe par l'API Intl native pour les dates, les nombres, les devises et les listes, plutôt que par des tables maison.
+
+Deux choses que j'intégrerais tôt parce qu'elles sont gratuites maintenant et coûteuses plus tard : les propriétés CSS logiques, marge en début de ligne plutôt que marge à gauche, au cas où l'écriture de droite à gauche arriverait un jour. Et tester la mise en page dans une langue verbeuse plutôt qu'en anglais. L'allemand est souvent trente pour cent plus long, et un bouton dimensionné sur du texte français casse.
+
+Et un cas à décider consciemment : les descriptions de cours sont saisies par les studios, donc elles ne sont pas traduites. Que voit un membre qui ne parle pas cette langue ? Souvent la réponse est rien de spécial, mais je préfère le décider que le découvrir en production.
+
+[long pause] Sur la sécurité. Le stockage des jetons d'abord. Le stockage local est trivial mais il est lisible en JavaScript, donc exfiltrable par n'importe quelle injection de script, y compris une qui viendrait d'une dépendance compromise. Un cookie inaccessible au JavaScript ne l'est pas. La meilleure combinaison, c'est le jeton d'accès en mémoire et le jeton de rafraîchissement dans un cookie inaccessible au script, avec rotation et détection de réutilisation.
+
+[medium pause] Il y a là une nuance qui compte plus que la réponse elle-même. On entend souvent que si vous avez une injection de script, vous avez déjà perdu. C'est une demi-vérité. Le cookie inaccessible au script ne rend pas l'injection inoffensive, un attaquant peut toujours agir depuis la page à l'intérieur de la session. Mais ça l'empêche d'exfiltrer un jeton pour s'en servir ailleurs et plus tard, ce qui change le rayon d'impact et la durée de la compromission. C'est de la défense en profondeur, pas un correctif.
+
+Dans ce produit précisément, les descriptions de cours sont saisies par les studios, donc il y a une vraie surface d'injection. Assainissement systématique, prudence extrême avec tout ce qui insère du HTML brut, et une politique de sécurité de contenu stricte.
+
+Et le multi-tenant est aussi un sujet de sécurité, et c'est le point que je voudrais le moins rater : chaque clé de cache doit inclure l'identifiant du studio. L'oublier ne produit pas un bug d'expérience, ça fait fuiter les données d'un studio dans l'application d'un autre. Dans un logiciel en service business to business to consumer, c'est un incident majeur.
+
+Sur le paiement, les champs de carte restent dans les champs hébergés du prestataire, pour que les données ne touchent jamais mon état ni mon périmètre de conformité.
+
+Sur l'accessibilité, le périmètre sur lequel je m'engagerais, c'est le niveau WCAG double A sur les parcours critiques : consulter, réserver, annuler, payer. Des tests automatisables en intégration continue, plus un audit manuel sur ces parcours.

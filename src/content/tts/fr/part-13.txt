@@ -1,0 +1,31 @@
+Et sur le parcours lui-même, je le modéliserais comme une machine à états explicite. Au repos, puis confirmation, qui affiche le récapitulatif : le cours, le professeur, l'horaire, le coût. De là, sélection de place si le cours a des places attribuées. Paiement s'il n'est pas couvert par le pack. Soumission, qui est le moment où la mise à jour optimiste affiche déjà le résultat. Puis succès, avec la confirmation et l'ajout au calendrier. Ou échec, avec une raison typée : place prise me renvoie au sélecteur, session complète propose la liste d'attente, paiement refusé propose un autre moyen, et un échec réseau retente automatiquement avec la même clé.
+
+L'arbitrage, c'est machine à états ou booléens. Cinq booléens, en chargement, en erreur, en succès, place choisie, paiement en cours, donnent trente-deux combinaisons, dont la grande majorité sont impossibles mais restent représentables. Et tout ce qui est représentable est atteignable par un bug. En plus de ça, la logique de rendu devient une cascade de conditions imbriquées que personne n'ose refactorer.
+
+Une union discriminée rend les états impossibles non représentables, force TypeScript à traiter chaque cas, et garde les données propres à un état à l'intérieur de cet état. La raison de l'échec n'existe que dans l'état échec, donc on ne peut pas y accéder ailleurs par accident.
+
+Une machine à états formelle comme XState ajoute la validation des transitions et la visualisation, au prix d'une dépendance et d'une courbe d'apprentissage.
+
+Ma réponse, c'est une union discriminée en TypeScript, sans dépendance. On obtient l'essentiel de la garantie pour un coût nul. XState si le graphe devient vraiment complexe, avec du parallélisme, des états imbriqués, de l'historique.
+
+[medium pause] Donc : une union discriminée plutôt qu'une poignée de booléens. Cinq booléens donnent trente-deux combinaisons, dont la plupart sont impossibles mais représentables, donc un bug peut les atteindre. Avec une union, les états impossibles sont non représentables et le compilateur me force à traiter chaque cas.
+
+[long pause] Creusons maintenant le tunnel de réservation, parce que je pense que c'est le cœur de cette conception.
+
+Voici la séquence complète, en suivant la donnée.
+
+Étape un, le clic. Une clé d'idempotence est générée. Un identifiant unique, généré au clic, pas au moment où la requête part. Cette distinction est le point le plus subtil de tout le tunnel, et j'explique pourquoi dans un instant.
+
+[short pause] Étape deux, la mise à jour optimiste. On prend un instantané de l'état du cache, on décrémente les places restantes, et la carte passe en attente. L'utilisateur voit le résultat immédiatement.
+
+[short pause] Étape trois, la requête part avec la clé dans un en-tête.
+
+[short pause] Étape quatre, succès. On écrit la réponse dans le cache, puis on invalide les clés liées, la session, mes réservations, mon pack, pour que tout se resynchronise en arrière-plan. La carte passe en réservé par moi.
+
+[short pause] Ou étape quatre, échec métier, par exemple session complète. On revient à l'instantané, la carte passe en complet, et on propose la liste d'attente. L'échec est expliqué, jamais silencieux.
+
+[short pause] Ou étape quatre, échec réseau. On retente avec un délai croissant, en réutilisant la même clé. Aucune double réservation n'est possible.
+
+[short pause] Et étape cinq, en parallèle, un événement temps réel peut modifier cette même session. La réconciliation doit l'appliquer sans écraser la mutation optimiste en vol.
+
+Sur optimiste contre pessimiste, puisque c'est le vrai arbitrage.

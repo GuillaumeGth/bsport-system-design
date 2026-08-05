@@ -1,0 +1,25 @@
+Public schedules and studio pages: static generation with incremental revalidation. Indexable, identical for everyone, fast largest contentful paint.
+
+A shareable class detail page: server rendered. Indexable, but with fresh data.
+
+The member app itself: client rendered. Personalized, no search engine requirement, highly interactive.
+
+The three questions that settle it, in order: is the content public and indexable, is it personalized, and how often does it change?
+
+[medium pause] If you challenge me with why not server-render everything, since it's better for performance, here's my answer. Server rendering mainly improves largest contentful paint. Inside the member app, the user has been there for thirty seconds. The bottleneck isn't first paint, it's interaction latency: how fast the Book button responds. Server rendering would add server cost and hydration complexity to optimize a metric that isn't the constraint here. And interestingly, the thing that actually improves interaction latency on this screen is the optimistic update we discussed earlier.
+
+There's a multi-tenant trap in rendering too. With per-studio branding, the theme has to be known before the first paint, otherwise you get a flash of unbranded content. That's a real argument for server rendering on the public surfaces, because the tokens get injected server-side. On pure client rendering, you either inline critical CSS per tenant, or accept a neutral loading screen.
+
+And on theming itself: one build per tenant gives you optimal CSS and zero flash, but it doesn't scale. A thousand studios means a thousand builds, and a new customer waits for a deployment. The answer is a single build with CSS custom properties, with tokens resolved as early as possible.
+
+There's an accessibility angle on theming that I think is worth raising. If a studio picks pale yellow on white, the contrast ratios collapse. So you validate contrast ratios at the moment the studio picks its colours, in the back-office, and you derive tokens automatically where you can. That link between multi-tenancy and accessibility is easy to miss.
+
+[long pause] On performance. If you ask me how I'd virtualize the list, my answer starts with a question. First, do we need to? We said a day of classes is about twenty cards. Virtualizing that is over-engineering, and it costs me browser search, deep-linking to an element, and screen-reader semantics. I'd virtualize if we're rendering a month across studios.
+
+And the real answer for a schedule is that the natural pagination of a calendar is a time range, not a page. You navigate by day or by week.
+
+On re-renders, as I said earlier, the main lever isn't memoization, it's state structure. Colocate. Split contexts, because a context holding both the theme and the scroll position re-renders everything on every scroll. And use composition through children, which naturally avoids re-rendering descendants.
+
+Memoization comes after, targeted at the boundaries that matter. Here, that means memoizing the class card so a real-time event on one session doesn't re-render the other forty. That's a case where the gain is structural and predictable, not speculative. And the React Compiler is where the framework is heading on this, which will make a lot of the manual work unnecessary.
+
+On which metric to optimize, it depends on the surface. The public schedule: largest contentful paint, because the user arrives from Google and judges in a second. The member app: interaction latency, because they're already inside, and what matters is that Book responds instantly. And everywhere, cumulative layout shift, not for aesthetic reasons but because a layout that jumps as availability updates can make someone tap the wrong class. Here, visual instability produces a booking error.

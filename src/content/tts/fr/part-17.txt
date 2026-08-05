@@ -1,0 +1,27 @@
+[medium pause] Donc : le flux d'événements fonctionne sur toutes les versions de HTTP, mais je voudrais du HTTP deux, sinon le plafond de six connexions par domaine peut affamer toutes les autres requêtes dès que quelques onglets tiennent chacun un flux ouvert.
+
+Deux nuances si vous voulez creuser. La limite est côté navigateur, pas côté serveur. Côté serveur, le coût est le nombre de connexions longues à maintenir, ce qui oriente vers un backend asynchrone. Et il existe une parade même en HTTP un point un : partager un seul flux entre tous les onglets via un worker partagé qui rediffuse. Je ne construirais ça que si le problème se manifestait réellement, sinon c'est de la sur-conception.
+
+Sur le contenu des messages, delta ou instantané complet. Un instantané complet de la session est simple et idempotent, mais lourd s'il est répété souvent. Un delta est minuscule, mais il suppose qu'on a reçu tous les précédents, dans le bon ordre.
+
+Ma réponse, c'est des deltas plus un numéro de version croissant. L'événement porte l'identifiant de la session, une version, et la liste des changements.
+
+Le numéro de version sert à trois choses. Il permet de rejeter un événement arrivé dans le désordre : si je reçois la version cent dix-sept après la cent dix-huit, je l'ignore. Il permet de détecter un trou : si je suis à cent quinze et que je reçois cent dix-huit, j'ai manqué des événements, donc je fais une resynchronisation complète plutôt que d'appliquer un correctif à l'aveugle sur une base incomplète. Et il permet d'ignorer un événement déjà appliqué.
+
+Le piège, c'est qu'un delta sans versionnement est une bombe à retardement. On ne détecte jamais qu'on a raté quelque chose, et l'écran diverge silencieusement de la réalité. Il faut toujours une stratégie de resynchronisation, et c'est exactement ce que le mécanisme de dernier événement reçu rend facile.
+
+Ensuite il y a la réconciliation avec le cache, qui est à mon avis le vrai sujet frontend du temps réel.
+
+Un événement entrant ne doit pas écraser une mutation optimiste en vol. Si je viens de cliquer sur réserver et que mon interface montre déjà la place comme mienne, un événement du serveur qui dit qu'il reste trois places ne doit pas la remettre. La réconciliation doit connaître les mutations en cours.
+
+À la reconnexion, on resynchronise l'état visible plutôt que de rejouer un historique potentiellement long.
+
+On regroupe les mises à jour. Si deux cents places changent en une seconde, on n'applique pas deux cents re-rendus, on agrège sur une image d'animation.
+
+Et on ne s'abonne qu'à ce qui est visible, en se désabonnant quand l'onglet est caché, avec une resynchronisation au retour. C'est un réflexe mobile, la batterie et le budget de connexion, et ça compte dans les conditions réelles où sont nos utilisateurs.
+
+[long pause] Si vous voulez un composant à creuser, je proposerais le sélecteur de place, parce qu'il concentre en un seul endroit tous les problèmes difficiles de cette conception.
+
+C'est le composant du choisissez votre place. Sur certains cours, du spinning avec des vélos numérotés, du pilates sur reformer, on ne réserve pas une place abstraite, on réserve une place précise sur un plan de salle. C'est aussi le seul composant ici qui justifie vraiment une WebSocket.
+
+Le point de conception le plus important, c'est qu'il a trois couches d'état avec trois durées de vie différentes, et ça découle directement du fait que la disponibilité est une projection.

@@ -1,0 +1,25 @@
+Il faut les quatre, mais seules les couches trois et quatre sont des garanties. Les deux premières sont du confort.
+
+[medium pause] Désactiver le bouton, c'est de l'expérience utilisateur, pas de la correction. Deux onglets, un appel direct à l'API, ou une resynchronisation hors ligne passent devant sans le voir. La vraie garantie, c'est la clé d'idempotence plus une contrainte d'unicité côté serveur. Je peux rendre le chemin heureux instantané. La correction, elle, doit vivre côté serveur.
+
+[long pause] Passons au temps réel.
+
+Sur le transport, il y a trois options. Le polling, où le client demande. Les événements poussés par le serveur, en flux HTTP. Et les WebSockets, qui sont bidirectionnelles.
+
+Le polling est trivial, ne demande aucune infrastructure, se met en cache, et se dégrade proprement. Mais la latence est égale à l'intervalle, et la grande majorité des requêtes reviennent en disant que rien n'a changé.
+
+Le flux d'événements serveur est poussé sur une seule connexion HTTP maintenue ouverte. Trois arguments en sa faveur. C'est du HTTP ordinaire, donc ça traverse les proxys et les pare-feu sans configuration. La reconnexion est automatique et intégrée, avec un en-tête de dernier événement reçu qui permet au serveur de rejouer ce qu'on a manqué. Et le besoin ici est purement unidirectionnel. Ses limites : unidirectionnel, texte seulement, et une limite de connexions dont je parle juste après.
+
+Les WebSockets sont bidirectionnelles et binaires, avec la latence la plus basse. Mais elles sont à état, donc la répartition de charge devient collante, et la reconnexion, les battements de cœur et la reprise après coupure sont à votre charge. Vous payez le bidirectionnel même si vous ne l'utilisez jamais.
+
+Le critère, c'est de savoir si le client a besoin d'émettre en continu.
+
+[medium pause] Pour la disponibilité en direct, le flux d'événements serveur. Le besoin est purement du serveur vers le client, c'est du HTTP simple, et la reconnexion automatique avec le dernier événement reçu permet au serveur de rejouer ce que j'ai manqué. Avec des WebSockets, j'écrirais tout ça moi-même. Je n'irais chercher les WebSockets que là où l'interaction est vraiment bidirectionnelle, comme une sélection de place partagée.
+
+Si vous me demandez pourquoi pas des WebSockets partout, ma réponse est : parce qu'on paierait un canal bidirectionnel, une infrastructure à état et sa propre logique de reconnexion pour servir un besoin unidirectionnel. Le bon transport est le plus simple qui satisfait le besoin.
+
+Un détail technique que je signalerais, parce qu'il pique. Le flux d'événements serveur fonctionne sur n'importe quelle version de HTTP. Ce n'est pas lié à une version, c'est simplement une réponse de type flux d'événements maintenue ouverte, disponible depuis HTML cinq. Ce qui change avec la version, c'est la limite de connexions simultanées par domaine.
+
+En HTTP un point un, le navigateur plafonne à environ six connexions par domaine. Or une connexion de flux d'événements reste ouverte en permanence. Plusieurs onglets sur votre application, ce sont plusieurs flux, et le budget est saturé, donc toutes les autres requêtes se mettent en file derrière. Ce bug est vraiment déroutant à diagnostiquer, parce que le rapport qu'on reçoit dit l'application se fige quand j'ai trois onglets ouverts, ce qui ne ressemble à rien.
+
+En HTTP deux et trois, les requêtes sont multiplexées sur une seule connexion, avec une centaine de flux simultanés, configurables. Le problème disparaît.

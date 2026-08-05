@@ -1,0 +1,578 @@
+Laissez-moi structurer ça. Je vais passer quelques minutes à clarifier les besoins et mes hypothèses, puis esquisser une architecture générale, entrer dans le modèle de données et le contrat d'API, et ensuite creuser les parties qui vous intéressent le plus. Je soupçonne que ce sera le tunnel de réservation et la disponibilité temps réel. Est-ce que ça vous va ?
+
+Très bien. Avant de concevoir quoi que ce soit, je veux clarifier le problème et énoncer mes hypothèses à voix haute, parce que ces hypothèses sont les entrées de toutes les décisions que je prendrai ensuite. Je vais poser quelques questions, et pour chacune je vais dire pourquoi je la pose, parce que la réponse change quelque chose de précis dans la conception.
+
+D'abord, de quelle surface parle-t-on ? L'application membre brandée, ou le back-office studio ? Je demande parce que les contraintes ne sont vraiment pas les mêmes. L'une est grand public, pensée mobile d'abord, utilisée par petites touches par quelqu'un debout dans un couloir. L'autre est un outil de travail ouvert sur un écran de bureau toute la journée. Si vous n'avez pas de préférence, je pars sur l'application membre, parce que c'est le cœur du produit et le cas le plus riche.
+
+[short pause] Ensuite, quel parcours exactement ? Consulter un planning, réserver, annuler, rejoindre une liste d'attente, choisir sa place, acheter un pack, payer. Chacun de ces éléments ajoute une dimension. Si c'est moi qui choisis, je prends consulter, réserver et annuler comme cœur, et je traite la liste d'attente et la sélection de place comme des raffinements sur lesquels je reviens une fois la base solide. Ça pose ma première version et mes approfondissements en une phrase.
+
+[short pause] Troisième question : un membre est rattaché à un studio, ou à plusieurs ? Ça décide si le contexte du tenant est fixe, une application brandée pour un studio, ou variable, plutôt façon place de marché. Les conséquences sur le cache et la navigation sont importantes, donc je préfère le savoir maintenant que le rattraper plus tard.
+
+[short pause] Quatrième question : les plannings sont-ils publics et indexables ? Un studio veut être trouvé sur Google quand quelqu'un cherche du pilates près de Bastille. Si oui, j'ai un besoin de référencement, et ça contraint ma stratégie de rendu.
+
+Passons au non-fonctionnel, qui est ce qui pilote réellement l'architecture.
+
+Est-ce que la disponibilité doit se mettre à jour en direct, et avec quelle latence acceptable ? La différence entre quelques secondes de retard tolérables, et il faut que ça bouge instantanément, c'est la différence entre un rafraîchissement périodique et un canal poussé par le serveur. Je ne veux pas supposer le second simplement parce qu'il est plus intéressant à construire.
+
+Quelles sont les conditions réseau réelles ? C'est la question que personne ne pose et c'est celle qui change le plus de choses. Une application utilisée sur un bon wifi de bureau, et une application utilisée sur une connexion mobile capricieuse au sous-sol d'un studio, n'appellent pas les mêmes compromis. Beaucoup de vos salles sont en sous-sol, ce qui est une contrainte concrète et vérifiable. C'est ce qui justifiera plus tard mon insistance sur la réduction des allers-retours réseau et sur la lecture hors ligne.
+
+Quels appareils vise-t-on ? Un Android d'entrée de gamme n'a pas le budget de calcul d'un iPhone récent. Ça détermine si la virtualisation et la maîtrise des re-rendus sont un confort ou une nécessité.
+
+Quel niveau d'accessibilité est-ce qu'on s'engage à tenir ? En Europe, sur un produit grand public, il y a désormais une dimension réglementaire avec l'European Accessibility Act, pas seulement éthique. Et sur un produit de bien-être en particulier, la population concernée, les personnes âgées, les personnes en rééducation, est surreprésentée, pas marginale.
+
+Combien de langues, et est-ce que les membres voyagent entre studios ? Parce que ça nous amène directement aux fuseaux horaires, et dans une application de planning c'est l'un des rares domaines où se tromper d'une seule heure détruit complètement la fonctionnalité.
+
+Une dernière question, sur le hors ligne. Est-ce que l'application mobile doit fonctionner sans connexion ? Je demande parce que ça change beaucoup de choses. Si c'est de la consultation seule, un cache suffit. Si on veut que les gens réservent hors ligne, il faut une file d'actions, une stratégie d'ordonnancement, une résolution de conflits, et surtout il faut décider ce qu'on promet à l'utilisateur, parce qu'on ne peut pas lui garantir une place sans serveur.
+
+Mettons aussi quelques chiffres, même approximatifs, parce que je préfère raisonner en quantités qu'en abstractions.
+
+Combien de créneaux à l'écran en même temps ? Une journée de cours dans un studio, c'est une vingtaine de cartes. Un mois sur plusieurs studios, c'est des milliers. Cette seule réponse décide si la virtualisation est nécessaire ou si elle serait de la sur-ingénierie, donc je préfère la trancher maintenant plutôt que d'en débattre plus tard.
+
+Quel est le rapport entre lectures et écritures ? Je m'attends à ce qu'il soit massivement déséquilibré. Un planning est consulté des centaines de fois pour une seule réservation. C'est structurant, parce que ça pousse vers un cache agressif en lecture et un chemin d'écriture soigné, plutôt que l'inverse.
+
+Et comment la charge se répartit-elle dans le temps ? Je suppose qu'elle n'est pas uniforme, mais en pics. Quand un studio ouvre ses réservations pour la semaine, des centaines de personnes se ruent sur les mêmes cours à la même seconde. Ça a deux conséquences directes côté frontend. C'est exactement le moment où les conflits de réservation deviennent probables, et c'est exactement le moment où une interface optimiste risque le plus de mentir à l'utilisateur.
+
+[medium pause] Voilà donc ce que je suppose. Application côté membre, web et mobile, un studio à la fois, une vingtaine de cours visibles simultanément, la disponibilité temps réel compte, le réseau n'est pas fiable dans les salles, et il y a de l'argent dans le flux à travers les packs de crédits. Dites-moi si quelque chose est faux. Ces hypothèses sont ce qui pilote ma stratégie de rendu, mon cache, et jusqu'où je vais sur le hors ligne.
+
+Une dernière chose que je veux nommer avant d'avancer, parce qu'elle va orienter des questions que je poserai plus tard. Nous sommes dans du business to business to consumer. Le client qui paie est le studio, l'utilisateur final est le membre, et leurs intérêts ne coïncident pas toujours. Le studio veut remplir ses cours, le membre veut de la flexibilité. Cette tension se manifeste très concrètement dans la politique de liste d'attente et dans les pénalités de non-présentation, et quand ce sera le cas, je préfère vous poser la question que trancher unilatéralement.
+
+[long pause] Bien. Laissez-moi commencer par la version la plus simple qui fonctionne vraiment, et je vous montrerai ensuite où elle casse et ce que j'ajouterais. Je trouve ça plus facile à challenger qu'une architecture livrée complète.
+
+La première version, c'est une application cliente qui parle à une API REST. Elle récupère la liste des sessions pour un studio et une plage de dates, les affiche, et quand l'utilisateur appuie sur Réserver, elle envoie une requête et met à jour l'écran avec la réponse. Le chargement, l'erreur et l'état vide sont gérés. C'est tout. Pas de canal temps réel, pas de hors ligne, pas de mise à jour optimiste, pas de machine à états.
+
+[medium pause] Ça fonctionne, et honnêtement, pour un pilote avec un seul studio, ça pourrait suffire. Mais il y a quatre choses qui vont casser.
+
+Premièrement, la disponibilité devient périmée à l'instant où elle est affichée. Quelqu'un d'autre réserve pendant que vous regardez l'écran.
+
+Deuxièmement, chaque clic attend un aller-retour réseau, ce qui sur une mauvaise connexion donne l'impression que l'application est cassée.
+
+Troisièmement, si le réseau tombe en pleine requête, on ne sait pas si la réservation a eu lieu, et une nouvelle tentative pourrait produire une double réservation.
+
+Quatrièmement, rien ne nous dit quand ça échoue en production.
+
+Ces quatre points sont ce que je veux creuser. Le temps réel, la latence perçue, l'idempotence, et l'observabilité.
+
+[long pause] Construisons maintenant correctement. Je vais dessiner des couches plutôt qu'un nuage de boîtes reliées par des flèches, parce que les couches rendent les dépendances explicites.
+
+Tout en haut, les composants d'interface. Le rendu, l'interaction, l'accessibilité.
+
+En dessous, l'état d'interface local. Les filtres, l'ouverture d'une modale, la place survolée, l'étape courante du parcours, la position de défilement.
+
+En dessous, l'état serveur et le cache. Les sessions, la disponibilité, mon profil, mes réservations.
+
+En dessous, le transport. Le client HTTP, le canal temps réel, la file d'actions hors ligne.
+
+Et sous tout ça, les services transverses. L'authentification, l'internationalisation, le thème du tenant, les feature flags, la télémétrie.
+
+Le principe, c'est que chaque couche a une responsabilité unique, et que les couches basses ignorent tout des couches hautes. Le client HTTP ne sait pas qu'un composant carte de cours existe. Le cache ne sait pas comment on affiche une erreur.
+
+Je veux relier ça à la clean architecture, puisque vous la mentionnez. La clean architecture n'est pas une idée réservée au backend. Sa proposition centrale, le domaine au centre, indépendant de l'infrastructure, avec des dépendances qui pointent vers l'intérieur, s'applique parfaitement côté client.
+
+[medium pause] La logique de domaine, ce qu'est une réservation, quels états elle peut prendre, ce qui rend une session réservable, ne devrait pas savoir si les données arrivent par REST, par GraphQL ou par une WebSocket. Si je tiens cette séparation, je peux changer de transport, tester le domaine sans réseau, et partager cette couche avec l'application mobile. C'est l'inversion de dépendance appliquée au client.
+
+Et ça a une conséquence pratique qui mérite d'être dite. C'est ce qui rend le partage de code entre web et mobile possible et sensé. La couche domaine, les règles, la machine à états, les types, c'est du TypeScript pur et ça se partage intégralement. La couche présentation ne se partage pas bien, et ne devrait pas. L'arbitrage que je défendrais est donc : partager ce qui est invariant, spécialiser ce qui est contextuel.
+
+Maintenant, laissez-moi raconter le trajet d'une réservation à travers ces couches, parce que le flux de données est plus parlant ici qu'un schéma de boîtes.
+
+[medium pause] L'utilisateur clique. Le composant n'appelle pas l'API. Il dispatche une mutation. La couche mutation génère une clé d'idempotence, applique une mise à jour optimiste à la session en cache pour que l'interface reflète immédiatement le changement, et envoie la requête. En cas de succès, elle écrit la réponse dans le cache et invalide les clés liées. En cas d'échec métier, elle revient à l'instantané précédent et expose une raison typée que le composant traduit en une interface précise. En cas d'échec réseau, elle retente avec la même clé. Pendant ce temps, le canal temps réel peut pousser une mise à jour sur cette même session, et la logique de réconciliation doit l'appliquer sans écraser la mutation optimiste en vol.
+
+Ce seul paragraphe contient l'essentiel de mon approfondissement, et je reviendrai sur chacune de ses pièces.
+
+Sur le découpage en composants, voilà comment je le taillerais.
+
+La page planning est le conteneur. Orchestration, récupération de données de haut niveau, routage. Le composant de filtres porte la date, la discipline, le studio et le professeur. C'est un conteneur, avec un état local répliqué dans l'URL. La liste affiche les créneaux, et ne les virtualise que si nous avons décidé que c'était nécessaire. Elle est présentationnelle. La carte de cours affiche un créneau et son état métier, présentationnelle également. Le parcours de réservation porte la machine à états. Le sélecteur de place gère la sélection et son propre canal temps réel. Le bouton de liste d'attente gère l'inscription et la position. Et un badge d'abonnement affiche les crédits et l'éligibilité.
+
+La distinction entre conteneur et présentationnel n'est pas cosmétique, et je veux dire pourquoi. Le vrai bénéfice, c'est la stabilité. Les composants présentationnels ne changent pas quand l'API change. Si la carte de cours reçoit un objet de propriétés bien défini plutôt que d'aller chercher ses données elle-même, une refonte du contrat d'API ne la touche pas. Sur une base de code qui vit cinq ans, c'est la différence entre un refactoring localisé et un chantier.
+
+Dans le même esprit : la composition plutôt que l'accumulation de propriétés. Une carte de cours avec vingt-cinq propriétés booléennes est un signal d'alarme. Ça veut dire que le composant essaie d'être toutes les variantes à la fois. La réponse est la composition, des sous-composants passés en enfants, ou des composants composés, plutôt qu'un drapeau par variation.
+
+C'est un endroit où mon expérience parle directement. Chez Ivalua, j'ai construit une bibliothèque de composants consommée par plusieurs équipes, avec un moteur de configuration qui permettait de personnaliser sans écrire de code. Le problème que je résolvais, comment un composant reste stable tout en restant extensible par des tiers, est exactement le problème qui se pose ici, où chaque studio veut son apparence.
+
+Si vous voulez le détail, les axes qui comptaient étaient les suivants. Les contrats : définir ce qui est garanti stable et ce qui peut bouger, pour que le noyau évolue sans casser les consommateurs. Les points d'extension, déclarés explicitement, plutôt que de laisser les équipes patcher l'intérieur des composants. C'est la différence entre une extensibilité conçue et une extensibilité subie. Le versionnement et la migration, qui sont le vrai problème d'une bibliothèque interne : comment faire évoluer un composant utilisé par une dizaine d'équipes sans bloquer tout le monde, et sans le figer à jamais. Et l'expérience développeur. Le moteur de configuration permettait à des non-développeurs de personnaliser, ce qui est de la conception d'API pour des humains, et c'est plus difficile que de la conception d'API pour des machines.
+
+Dernier point sur le découpage, et c'est celui qui relie la structure à la performance : la frontière de re-rendu. Quand un événement temps réel dit que la session quarante-deux a maintenant trois places restantes, il doit re-rendre la carte de la session quarante-deux, et pas les quarante autres. On n'obtient pas ça en ajoutant de la mémoïsation après coup, on l'obtient par la structure. Chaque carte s'abonne à sa propre tranche de cache, plutôt que de recevoir un tableau global en propriétés.
+
+[medium pause] Je l'énoncerais comme un principe. Le premier levier sur les re-rendus n'est pas la mémoïsation, c'est la structure de l'état. Colocaliser, découper les contextes, laisser chaque carte s'abonner à sa propre tranche. La mémoïsation, c'est ce qu'on ajoute après avoir mesuré, pas ce qu'on saupoudre partout d'emblée.
+
+[long pause] Passons aux données. Je ne conçois pas votre base, mais j'ai besoin de savoir de quoi je parle pour négocier le contrat d'API, et je crois que c'est là la différence entre un ingénieur frontend et quelqu'un qui consomme des endpoints.
+
+Je découperais le domaine en quatre contextes. Le catalogue porte le studio, le lieu, la salle, la discipline et le professeur. C'est le qui, le quoi et le où. La planification porte le modèle de cours, la session et la place. C'est le quand. La réservation porte le membre, la réservation et l'entrée en liste d'attente. C'est qui vient. Et la facturation porte les abonnements, les packs, les commandes et les paiements. C'est qui paie.
+
+[medium pause] Ces quatre-là correspondent à des contextes délimités, et ce sont aussi les coutures naturelles de l'API. Ce qui m'importe en tant qu'ingénieur frontend, c'est qu'un écran traverse en général plusieurs d'entre eux. L'écran de planning a besoin du catalogue, de la planification et de la facturation en même temps, et cette tension est exactement d'où viennent les cascades de requêtes et la sur-récupération de données.
+
+Commençons par le catalogue. L'entité studio porte le branding, le fuseau horaire, la devise, la locale par défaut, et les politiques de réservation : à combien de temps à l'avance les réservations ouvrent, jusqu'à quand on peut annuler gratuitement, quelle est la pénalité en cas d'absence.
+
+Deux de ces champs ont un impact frontend disproportionné. Le branding doit être disponible avant le premier rendu, sinon l'utilisateur voit un flash aux mauvaises couleurs avant que l'application se rebrande. Sur une application censée appartenir au studio, ça se voit et ça casse l'illusion. Et le fuseau horaire doit accompagner chaque donnée temporelle. J'y reviendrai en détail, mais posons-le maintenant : un cours à dix-huit heures à Barcelone est à dix-huit heures pour tout le monde, y compris pour un membre qui consulte depuis Paris.
+
+Le lieu permet à un studio d'avoir plusieurs adresses, potentiellement dans des fuseaux différents. La salle porte la capacité et le plan. La discipline porte un nom et une couleur, ce qui alimente le filtrage et le code visuel du planning. Et le professeur compte plus qu'on ne le croit, parce que beaucoup de membres choisissent le cours d'une personne précise plutôt que du yoga à dix-huit heures. Je prévois donc le filtre par professeur, et l'affichage du remplaçant quand il y en a un.
+
+La planification est l'endroit où se trouve la subtilité de modélisation, alors prenons un moment.
+
+Un modèle de cours est la définition récurrente. Vinyasa, tous les mardis à dix-huit heures, salle deux, quarante-cinq minutes, ce professeur, quinze places, un crédit. Il porte une règle de récurrence.
+
+Une session est l'occurrence datée concrète. C'est ce qu'on réserve réellement. Elle porte son instant de début en temps universel, son fuseau, sa capacité, son compteur de réservations, son statut, et les exceptions propres à cette occurrence : un professeur remplaçant, une salle changée, un cours annulé.
+
+Ce qui soulève un arbitrage : est-ce qu'on matérialise les occurrences, ou est-ce qu'on les génère à la volée depuis la règle ?
+
+Générer à la volée ne coûte rien en stockage. Mais une occurrence générée n'a pas d'identité stable, donc on ne peut pas y attacher une réservation, une annulation ou un remplaçant. Et gérer les exceptions à l'intérieur d'une règle de récurrence devient vite ingérable.
+
+Matérialiser chaque occurrence donne à chacune une identité, et donc la possibilité d'y accrocher des données. Mais jusqu'où dans le futur génère-t-on ?
+
+La réponse est un horizon glissant. On matérialise sur quelques mois, et un travail de fond regénère au fil du temps. Ça concilie identité stable et stockage borné.
+
+Et voilà la vraie question, que je soulèverais même si vous ne me la posiez pas : que se passe-t-il quand la règle change ? Le professeur change tous les mardis à partir de septembre. Est-ce qu'on modifie les occurrences déjà matérialisées ? Toutes, ou seulement les futures ? Et celles qui ont déjà des réservations ?
+
+C'est exactement le problème modifier cet événement, tous les événements, ou tous les suivants, qu'on connaît dans Google Agenda. Et ça a une conséquence frontend directe. L'interface de back-office doit poser la question à l'utilisateur plutôt que de deviner, et l'application membre doit gérer le cas où le cours que vous avez réservé a changé de professeur ou de salle, avec une notification claire.
+
+Enfin, la place n'existe que pour les cours à place attribuée. Un identifiant, un libellé comme vélo douze, une position dans le plan, et un type : standard, accessible, ou hors service.
+
+Côté réservation, une réservation porte la session, le membre, éventuellement la place, son statut, et sa clé d'idempotence. Son cycle de vie est une véritable machine à états. En attente peut devenir confirmée, ou expirer si un verrou n'est pas confirmé à temps. Confirmée peut devenir présente quand la personne vient, ou absente quand elle ne vient pas, ce qui peut déclencher une pénalité selon la politique du studio. Et le membre comme le studio peuvent annuler. Séparément, une entrée en liste d'attente devient confirmée quand une place se libère.
+
+Il y a un point qui mérite d'être fait ici, parce qu'il illustre le principe du simple d'abord sur un cas concret. L'état en attente n'existe que s'il y a un verrou temporaire pendant qu'un paiement se déroule. Si la réservation est couverte par un pack de crédits, le débit est instantané et on passe directement en confirmée.
+
+[medium pause] Je n'introduirais donc pas le verrou puis confirmation par défaut. Ça amène une durée de vie, une tâche d'expiration, un état en attente, un compte à rebours dans l'interface, et la libération du verrou en cas d'abandon. C'est beaucoup de machinerie, et une réservation par crédits n'en a aucun besoin. Je l'ajouterais exactement au moment où un paiement par carte s'intercale entre l'intention et la confirmation.
+
+L'entrée en liste d'attente soulève une question produit que je préfère vous poser plutôt que de trancher seul. Quand une place se libère, est-ce que la première personne de la liste est réservée automatiquement, ou reçoit-elle une invitation à accepter dans une fenêtre de temps ?
+
+L'automatique maximise le remplissage, ce qui est l'intérêt du studio. L'opt-in protège le membre d'être engagé sans l'avoir voulu, débité d'un crédit, et éventuellement pénalisé pour absence parce qu'il n'a jamais lu la notification. Et la bonne réponse dépend du délai : vingt-quatre heures avant le cours, l'opt-in est raisonnable. Vingt minutes avant, une fenêtre d'acceptation laisse simplement la place vide.
+
+[medium pause] C'est une décision produit plus qu'une décision d'ingénierie. Je partirais probablement sur un hybride en fonction du temps restant avant le cours, mais je voudrais savoir si les studios pénalisent les absences, parce que réserver automatiquement quelqu'un qui se fait ensuite pénaliser pour ne pas être venu, c'est le pire des deux mondes.
+
+Et côté facturation, l'abonnement ou le pack porte le type, les crédits restants, la validité, et les restrictions sur les disciplines ou les studios autorisés. C'est ce qui pilote l'éligibilité, et l'éligibilité est un point majeur pour l'interface, parce que pouvoir réserver ne dépend pas seulement des places restantes, mais aussi du pack. J'y reviens quand je parlerai des états d'interface, parce que c'est le point que la plupart des gens manquent.
+
+[long pause] Venons-en à la disponibilité. C'est un point de modélisation où il est facile de se tromper, et où avoir la bonne réponse se voit beaucoup.
+
+[medium pause] La disponibilité n'est pas un attribut stocké. C'est une projection. La disponibilité, c'est la capacité, qui est statique, moins les occupations, qui sont dynamiques.
+
+Une place n'a pas de champ est disponible. Elle ne peut pas en avoir : le vélo douze est pris à dix-huit heures et libre à dix-neuf heures. La disponibilité est une propriété du couple place et session, pas de la place. Si vous la stockez sur la place, votre modèle casse à la deuxième session de la journée.
+
+La conséquence pour le contrat, c'est que le client consomme une liste de disponibilités par place, identifiant et statut, par session, tenue séparée du plan de salle.
+
+Il y a deux régimes. La capacité anonyme, où il n'y a pas de places individuelles, juste un compteur, donc la session porte une capacité et un nombre de réservations. Et les places attribuées, où il y a de vraies entités place et où la disponibilité se calcule place par place.
+
+Le point à faire, c'est que le second contient le premier. Si vous avez les places, vous pouvez en dériver le compteur. Mais vous ne faites pas payer la complexité d'un plan de salle aux cours qui n'en ont pas besoin. Le plan est optionnel, et l'interface bascule entre un parcours simple et le sélecteur de place selon qu'il existe ou non.
+
+Sur le compteur lui-même, dérivé ou matérialisé. Dérivé, c'est-à-dire compter les réservations à chaque lecture, est toujours exact et impossible à désynchroniser, mais coûteux quand le planning est lu massivement. Matérialisé, c'est-à-dire un compteur sur la session mis à jour à chaque écriture, est instantané en lecture, et c'est aussi ce compteur qui porte l'invariant de non-surréservation côté serveur. En contrepartie il peut dériver en cas de bug, donc il faut une réconciliation périodique. Vu le rapport lecture-écriture qu'on a établi, des centaines de lectures pour une écriture, je pars sur matérialisé.
+
+Et il y a trois états, pas deux. Libre, c'est-à-dire aucune occupation. Verrouillée, un verrou temporaire avec expiration, ce qui veut dire que quelqu'un est en train de payer. Et réservée, une réservation confirmée.
+
+Sans l'état verrouillée, on se retrouve devant un choix impossible. Soit on réserve dès le clic, et un paiement abandonné bloque la place indéfiniment. Soit on ne réserve qu'après paiement, et deux personnes peuvent payer pour la même place. Un verrou avec expiration résout ça, et c'est exactement ce qui explique l'état en attente de la réservation et le compte à rebours dans l'interface.
+
+À ça s'ajoutent des indisponibilités qui ne viennent pas des membres : une machine en panne, une place réservée au personnel.
+
+[medium pause] Et voici le principe qui gouverne tout le reste. Quel que soit le nombre de places restantes que le serveur me donne, c'est une indication, pas une garantie. Ça peut venir d'un cache, ça peut avoir deux cents millisecondes de retard, et quelqu'un peut être en train de payer la dernière place. Le seul moment où la vérité existe, c'est la réponse à la requête de réservation.
+
+[medium pause] Ce qui veut dire que le chemin de refus n'est pas un cas limite que je traite à la fin. C'est un chemin nominal que je conçois dès le départ. La place vient d'être prise, voici trois alternatives, doit être aussi soigné que l'écran de succès.
+
+[long pause] Parlons du contrat d'API, parce que je ne pense pas qu'un ingénieur frontend doive en être un consommateur passif. Je le négocierais, et j'ai quatre arguments à apporter.
+
+Premièrement, les réponses enrichies. Est-ce que le serveur renvoie des sessions avec la discipline, le professeur, les places restantes et l'éligibilité déjà incluses, ou des références qu'il faut aller chercher séparément ?
+
+Normalisé donne une charge utile compacte mais provoque une cascade. Les sessions, puis les professeurs, puis les disciplines. Chaque saut coûte un aller-retour. Enrichi donne une charge plus grosse avec de la duplication, le même professeur répété quarante fois, mais un seul aller-retour.
+
+Le critère qui tranche, c'est le coût d'un aller-retour sur le réseau cible. Sur une connexion mobile médiocre en sous-sol, chaque saut coûte entre cent et trois cents millisecondes. Trois sauts en cascade, c'est une seconde d'écran vide.
+
+[medium pause] Donc : j'optimise les allers-retours, pas la taille de la charge utile. Dupliquer un professeur quarante fois coûte quelques kilo-octets après compression. Une cascade supplémentaire coûte des centaines de millisecondes d'écran vide. La bande passante est abondante, la latence ne l'est pas.
+
+[short pause] Deuxièmement, l'éligibilité. Qui calcule si ce membre peut réserver ce cours ?
+
+Côté client, à partir du pack et de la session, c'est réactif et ça fonctionne hors ligne. Mais ça duplique une règle métier sur trois clients, le web, le mobile et le back-office, et ces trois copies vont diverger. Le jour où un studio ajoute une restriction horaire à un pack, vous affichez réservable pour un cours que l'API va refuser.
+
+Côté serveur, renvoyé comme un champ avec une raison typée, c'est une seule implémentation, et elle peut évoluer sans redéployer les clients.
+
+Le critère, c'est : est-ce une règle métier ou une règle de présentation ? L'éligibilité est une règle métier. Elle change, elle a des exceptions, et elle vaut de l'argent. Donc le serveur décide, le client présente. Le serveur renvoie si je peux réserver, et la raison typée du refus, et le client traduit cette raison en interface.
+
+Il y a un cas subtil que je soulèverais moi-même : que fait-on hors ligne ? On ne peut pas demander au serveur. Deux options honnêtes. Afficher la dernière éligibilité connue, explicitement marquée comme non confirmée. Ou embarquer une copie approximative des règles en acceptant qu'elle puisse se tromper, auquel cas l'interface doit rester prudente plutôt qu'affirmative. Ma préférence : hors ligne, j'affiche la dernière éligibilité connue, explicitement marquée comme à confirmer, plutôt que de recalculer les règles côté client et de mentir avec assurance.
+
+[short pause] Troisièmement, les erreurs typées, parce que les erreurs pilotent l'interface. Un code quatre cents avec un message, ou un code d'erreur lisible par la machine ? Le critère, c'est de savoir si chaque cause appelle une interface différente. Ici, massivement oui.
+
+Session complète veut dire revenir en arrière et proposer la liste d'attente. C'est de la rétention. Place déjà prise veut dire retourner au sélecteur de place. C'est de l'expérience. Déjà réservé n'est pas une erreur du tout, et j'y reviens. Plus de crédits veut dire proposer l'achat d'un pack. C'est du revenu. Non couvert par l'abonnement veut dire proposer une montée en gamme. Du revenu également. Fenêtre de réservation fermée veut dire annoncer que ça ouvre le trois août à neuf heures, et proposer un rappel. Annulation trop tardive veut dire expliquer la politique, ce qui évite un ticket de support. Et échec de paiement veut dire proposer un autre moyen de paiement. Encore du revenu.
+
+Deux remarques là-dessus. Le message affiché appartient au client. Le code est pour la machine. Le texte doit être traduit, adapté au ton de la marque, et accompagné de la bonne action. Afficher le message brut du serveur est un raccourci qui produit des interfaces incohérentes et parfois des fuites d'information.
+
+Et déjà réservé n'est pas une erreur. C'est le résultat normal d'une nouvelle tentative réussie ou d'un double appui. Le traiter comme une erreur affiche une alerte anxiogène dans une situation où tout va bien.
+
+[medium pause] En résumé : trois de ces codes sont des opportunités de vente plutôt que des échecs. Et déjà réservé n'est pas une erreur du tout, c'est en général une nouvelle tentative qui a fonctionné. Afficher une erreur à ce moment-là effraie l'utilisateur pour rien.
+
+[short pause] Quatrièmement, le temps dans le contrat. Les instants transitent en temps universel, le fuseau du studio accompagne la donnée, et le rendu se fait dans ce fuseau. Le fuseau de l'appareil ne sert que pour les affichages relatifs, comme dans deux heures, ou pour avertir un membre en voyage. J'y reviendrai, mais c'est un champ du contrat, donc je le pose maintenant.
+
+[long pause] Ensuite, où vit l'état. Je le séparerais en quatre familles, parce que je pense que cette séparation est ce qui garde une application cliente maintenable.
+
+L'état serveur : les sessions, la disponibilité, les places, mes réservations, mon pack, le plan de salle. Je ne le possède pas, il peut être périmé, il se revalide, il se nettoie tout seul.
+
+L'état d'interface local : l'ouverture d'une modale, la place survolée, l'étape du parcours, la position de défilement. Éphémère, non partagé, il meurt avec le composant.
+
+L'état client global : la session d'authentification, le thème du tenant, la locale, le statut réseau, la file d'actions hors ligne. Transverse, persistant, peu de consommateurs mais dispersés.
+
+Et l'état d'URL : la date, les filtres, le cours sélectionné. Partageable, mettable en favori, il survit à un rechargement.
+
+Le critère qui range chaque chose dans l'une de ces quatre familles, c'est la portée et le cycle de vie. Qui en a besoin, et quand est-ce que ça meurt.
+
+[medium pause] L'erreur classique, c'est de mettre les données serveur dans Redux. Elles ont un cycle de vie complètement différent, mise en cache, péremption, revalidation en arrière-plan, nettoyage, et on finit par réimplémenter tout ça à la main dans des reducers. Je garde le store global pour l'état client transverse et pour la file hors ligne.
+
+Et il y a une erreur symétrique, qu'on cite moins souvent : tout colocaliser puis faire redescendre par propriétés sur cinq niveaux. La règle que j'applique, c'est colocaliser par défaut, remonter quand c'est prouvé nécessaire, et préférer la composition par enfants au passage de propriétés en cascade.
+
+Sur l'URL précisément. Studio quarante-deux, planning, date, discipline yoga. La date et les filtres vivent dans l'URL, parce qu'un membre veut envoyer viens à ce cours à un ami, veut que le bouton retour fonctionne après avoir ouvert un cours, et veut retrouver ses filtres après un rechargement.
+
+Et il y a un piège qui mérite d'être mentionné. Si la modale de réservation s'ouvre sans toucher à l'URL, le bouton retour d'Android quitte l'application au lieu de fermer la modale. C'est l'un des motifs de désinstallation les plus classiques sur mobile, et c'est complètement invisible quand on développe sur un écran de bureau.
+
+Sur la librairie de récupération de données. TanStack Query, SWR et RTK Query donnent tous la mise en cache, la déduplication des requêtes, la revalidation en arrière-plan, le stale-while-revalidate, et les états de chargement et d'erreur. Sans l'une d'elles, on réimplémente tout ça, mal. Et aucune des trois ne fait de cache normalisé automatique, ce qui est une limite sur laquelle je reviens.
+
+TanStack Query est la plus complète. Mutations, mises à jour optimistes avec retour arrière intégré, préchargement, rendu serveur avec un contrôle fin, les meilleurs outils de développement, la plus large communauté. Contre elle : trois fois le poids de SWR, plus de concepts à maîtriser, le temps de péremption face au temps de nettoyage, le partage structurel, et une version cinq qui a introduit des ruptures.
+
+SWR assume le minimalisme. Environ quatre kilo-octets, très élégante avec Next.js. Sur une application dominée par la lecture, la simplicité est une fonctionnalité, pas une limite. Contre elle : on plafonne dès que les mutations se complexifient, l'invalidation est manuelle, et il n'y a pas de vraie notion de temps de péremption ni de revalidation conditionnelle.
+
+RTK Query est le bon choix exactement quand ça en a l'air : quand Redux Toolkit est déjà là. Elle élimine le code répétitif des thunks, rend l'invalidation déclarative par étiquettes, et donne le débogage par voyage dans le temps. Contre elle : elle exige Redux, impose beaucoup de concepts spécifiques, ses définitions sont verbeuses, et le poids cumulé est conséquent.
+
+Deux questions tranchent. Redux est-il déjà là, et quelle est la complexité des mutations ?
+
+Si l'application tourne déjà sur Redux, je pars sur RTK Query. Ajouter TanStack Query à côté, ça veut dire deux paradigmes de données concurrents dans une même base de code, et c'est un coût réel de maintenance et d'intégration des nouveaux arrivants, que j'ai vu se matérialiser. Sur un projet neuf sans Redux, TanStack Query : meilleure ergonomie d'invalidation et meilleurs outils, sans payer la taxe Redux. Et je n'adopterais jamais Redux uniquement pour obtenir RTK Query.
+
+Ce que je soulignerais, c'est que la décision est pilotée par la complexité des mutations, pas par les lectures. Les trois mettent en cache une liste de cours très correctement. C'est ce tunnel de réservation, mise à jour optimiste, retour arrière en cas de conflit, nouvelle tentative idempotente, réconciliation avec un événement en direct, qui les sépare.
+
+Dans le même ordre d'idées, le cache document face au cache normalisé. Ces trois librairies stockent des réponses entières sous une clé. La même entité peut donc exister en plusieurs copies. Le cours quarante-deux est dans le planning, dans mes réservations, et dans l'écran de détail. J'annule depuis l'écran de détail, et les deux autres mentent jusqu'à leur revalidation.
+
+Un cache normalisé, comme Apollo ou Relay, stocke les entités à plat par identifiant, et les vues n'en tiennent que des références. Une mise à jour se propage partout instantanément. Mais ça coûte : il faut des identifiants globaux fiables, un ramasse-miettes, et les listes doivent quand même être invalidées séparément, parce qu'une nouvelle entité n'apparaît pas magiquement dans une liste.
+
+Ma réponse, c'est un cache document avec une discipline d'invalidation. Concrètement, structurer les clés de requête de façon hiérarchique, sessions puis studio puis date, pour pouvoir invalider par préfixe après une mutation.
+
+Et si cette douleur grandissait, si l'application devenait vraiment un graphe et que les copies périmées commençaient à causer de vrais bugs, c'est précisément là que GraphQL avec Apollo justifierait sa complexité. Son cache normalisé est ce qu'il a de meilleur. Mais je ne l'achèterais pas d'emblée.
+
+Un dernier point sur le cache : la fraîcheur par type de donnée, parce qu'une valeur globale unique est toujours un mauvais compromis. Le plan de salle peut être caché pendant des heures, il ne change qu'en cas de réaménagement. Les disciplines et les professeurs, environ une heure, c'est quasi statique. La structure du planning, quelques minutes. La disponibilité, zéro, avec un canal temps réel par-dessus, parce qu'elle change à la seconde. Et mon profil et mes crédits sont invalidés après une mutation, parce qu'ils changent quand j'agis.
+
+[medium pause] Un temps de péremption par type de donnée, pas une valeur globale unique. Trop court et je martèle l'API. Trop long et j'affiche des places fantômes.
+
+[long pause] Passons aux états de l'interface, et je veux distinguer deux niveaux, parce que la plupart des conceptions n'en voient qu'un.
+
+Le niveau technique s'applique à toute donnée distante. Au repos, rien n'a encore été demandé. Chargement initial, qui devrait être un squelette à la forme du contenu, pas un indicateur centré qui tourne. Succès, le contenu. Vide, aucun cours ce jour-là, plus une action, et ce n'est pas une erreur. Erreur, un message clair plus une action pour réessayer, en distinguant le réseau du serveur. Rafraîchissement, qui affiche le contenu plus un indicateur discret. Optimiste, qui affiche la valeur anticipée avec un état visuel en cours. Et hors ligne, avec un bandeau, le cache, et les actions mises en file.
+
+Deux choses à ce niveau séparent une bonne implémentation d'une implémentation médiocre.
+
+Ne jamais confondre vide et erreur. Un planning vide un dimanche n'est pas une panne. Afficher une erreur est survenue quand il n'y a simplement pas de cours génère des tickets de support et de l'anxiété pour rien.
+
+Et ne jamais retomber en squelette lors d'un rafraîchissement. C'est littéralement la différence entre une application qui semble lente et une application qui semble instantanée. Si vous re-squelettisez à chaque revalidation de fond, l'écran clignote et l'utilisateur perçoit chaque interaction comme un rechargement. La distinction entre chargement initial et rafraîchissement de fond est une décision d'architecture de l'état, pas un détail cosmétique.
+
+Ensuite il y a le niveau métier, sur une seule carte de cours. Réservable affiche les places restantes et un bouton plein. Presque complet affiche un badge deux places restantes, qui est un levier de conversion. Complet propose la liste d'attente. En liste d'attente affiche que vous êtes troisième, avec la possibilité de quitter. Réservé par moi affiche un badge confirmé avec annuler ou voir. En attente désactive le bouton et affiche un indicateur. Non éligible dit non inclus dans votre pack, avec une action d'achat ou de montée en gamme. Réservation pas encore ouverte dit ouvre le trois août à neuf heures, avec une action prévenez-moi. Annulation verrouillée dit gratuit jusqu'à douze heures avant, et annuler affiche un avertissement. Annulé par le studio affiche le cours barré avec un motif. Et passé est grisé.
+
+Celui sur lequel je veux insister, c'est non éligible. C'est le cas que la plupart des gens oublient, parce qu'ils modélisent la disponibilité et s'arrêtent là. Or ce cours est complet, et votre pack ne couvre pas ce cours, sont deux échecs complètement différents. Le premier propose une liste d'attente. Le second est une opportunité de vente, parce que le membre veut venir, il a de l'argent, il lui manque simplement le bon pack.
+
+[medium pause] Si je fusionne ces deux cas en un seul état vous ne pouvez pas réserver, j'ai transformé une opportunité de vente en cul-de-sac. Et c'est le chiffre d'affaires du studio, pas juste un détail d'expérience utilisateur.
+
+Il y a un deuxième point, plus subtil, sur ces états : certains d'entre eux périment tout seuls. À dix-sept heures cinquante-neuf, l'annulation est gratuite. À dix-huit heures une, elle ne l'est plus, et aucun message du serveur ne vous a prévenu. C'est un cas rare, une donnée qui devient fausse par le simple passage du temps. La conséquence, c'est qu'il faut soit un minuteur qui recalcule à l'échéance, soit une revalidation au retour du focus, soit, et c'est le plus important, une revérification au moment de l'action. Ne jamais autoriser une annulation gratuite sur la foi d'un état rendu il y a dix minutes.
+
+Et sur le parcours lui-même, je le modéliserais comme une machine à états explicite. Au repos, puis confirmation, qui affiche le récapitulatif : le cours, le professeur, l'horaire, le coût. De là, sélection de place si le cours a des places attribuées. Paiement s'il n'est pas couvert par le pack. Soumission, qui est le moment où la mise à jour optimiste affiche déjà le résultat. Puis succès, avec la confirmation et l'ajout au calendrier. Ou échec, avec une raison typée : place prise me renvoie au sélecteur, session complète propose la liste d'attente, paiement refusé propose un autre moyen, et un échec réseau retente automatiquement avec la même clé.
+
+L'arbitrage, c'est machine à états ou booléens. Cinq booléens, en chargement, en erreur, en succès, place choisie, paiement en cours, donnent trente-deux combinaisons, dont la grande majorité sont impossibles mais restent représentables. Et tout ce qui est représentable est atteignable par un bug. En plus de ça, la logique de rendu devient une cascade de conditions imbriquées que personne n'ose refactorer.
+
+Une union discriminée rend les états impossibles non représentables, force TypeScript à traiter chaque cas, et garde les données propres à un état à l'intérieur de cet état. La raison de l'échec n'existe que dans l'état échec, donc on ne peut pas y accéder ailleurs par accident.
+
+Une machine à états formelle comme XState ajoute la validation des transitions et la visualisation, au prix d'une dépendance et d'une courbe d'apprentissage.
+
+Ma réponse, c'est une union discriminée en TypeScript, sans dépendance. On obtient l'essentiel de la garantie pour un coût nul. XState si le graphe devient vraiment complexe, avec du parallélisme, des états imbriqués, de l'historique.
+
+[medium pause] Donc : une union discriminée plutôt qu'une poignée de booléens. Cinq booléens donnent trente-deux combinaisons, dont la plupart sont impossibles mais représentables, donc un bug peut les atteindre. Avec une union, les états impossibles sont non représentables et le compilateur me force à traiter chaque cas.
+
+[long pause] Creusons maintenant le tunnel de réservation, parce que je pense que c'est le cœur de cette conception.
+
+Voici la séquence complète, en suivant la donnée.
+
+Étape un, le clic. Une clé d'idempotence est générée. Un identifiant unique, généré au clic, pas au moment où la requête part. Cette distinction est le point le plus subtil de tout le tunnel, et j'explique pourquoi dans un instant.
+
+[short pause] Étape deux, la mise à jour optimiste. On prend un instantané de l'état du cache, on décrémente les places restantes, et la carte passe en attente. L'utilisateur voit le résultat immédiatement.
+
+[short pause] Étape trois, la requête part avec la clé dans un en-tête.
+
+[short pause] Étape quatre, succès. On écrit la réponse dans le cache, puis on invalide les clés liées, la session, mes réservations, mon pack, pour que tout se resynchronise en arrière-plan. La carte passe en réservé par moi.
+
+[short pause] Ou étape quatre, échec métier, par exemple session complète. On revient à l'instantané, la carte passe en complet, et on propose la liste d'attente. L'échec est expliqué, jamais silencieux.
+
+[short pause] Ou étape quatre, échec réseau. On retente avec un délai croissant, en réutilisant la même clé. Aucune double réservation n'est possible.
+
+[short pause] Et étape cinq, en parallèle, un événement temps réel peut modifier cette même session. La réconciliation doit l'appliquer sans écraser la mutation optimiste en vol.
+
+Sur optimiste contre pessimiste, puisque c'est le vrai arbitrage.
+
+Pessimiste, ça veut dire un indicateur de chargement, puis la mise à jour à la réponse. Ça ne ment jamais à l'écran, le code est simple, il n'y a pas de retour arrière. Mais chaque action semble lente. Sur un réseau à trois cents millisecondes de latence, l'application paraît poussive.
+
+Optimiste, ça veut dire que l'interface change immédiatement, avec un retour arrière en cas d'échec. Ça paraît instantané, et c'est directement une amélioration de la latence d'interaction. Mais c'est plus complexe, et surtout ça risque de mentir.
+
+Le critère, c'est la probabilité de succès et le coût d'un mensonge. Et ce qui est intéressant, c'est que ma réponse est différenciée par action, et même par contexte.
+
+Annuler : optimiste, ça réussit presque toujours. Rejoindre une liste d'attente : optimiste, il n'y a pas de rareté. Réserver un cours à moitié vide : optimiste, un conflit est improbable. Réserver la dernière place : prudent. Payer : pessimiste, on n'affiche jamais une confirmation de paiement qui pourrait être fausse.
+
+Le raffinement que j'ajouterais, c'est de moduler l'optimisme selon le nombre de places restantes. Sur les dernières places, un honnête confirmation en cours vaut mieux qu'un joyeux c'est bon, suivi d'un en fait non.
+
+[medium pause] Et le point que je ne veux pas rater : l'optimisme ne supprime pas la gestion de l'échec, il rend l'échec plus visible, parce que l'utilisateur a déjà vu le succès. Donc le retour arrière doit s'expliquer. Cette place vient d'être prise, voici trois alternatives. Jamais un retour silencieux.
+
+Ensuite il y a l'invalidation, qui est à mon avis le vrai sujet quand les gens disent cache.
+
+Après une mutation réussie, comment se resynchroniser ? On peut invalider et refetcher, ce qui donne la vérité du serveur et évite de se tromper dans la transformation locale, mais c'est un aller-retour de plus. Ou on peut écrire la réponse dans le cache, ce qui est instantané et ne coûte aucune requête, mais il faut transformer correctement, et le reste de l'écran peut rester périmé.
+
+Le critère, c'est de savoir si la mutation affecte des données au-delà de ce qu'elle renvoie. Ici, oui. Une réservation change la session, mais aussi mes crédits, mes prochaines réservations, et éventuellement une liste d'attente. La réponse ne contient pas tout ça.
+
+La réponse est donc : les deux. Écriture optimiste immédiate pour la perception, la réponse écrite au succès, puis invalidation en arrière-plan des clés impactées. L'utilisateur voit instantanément, et la cohérence globale se rétablit en silence.
+
+Le piège, c'est de garder l'instantané d'avant la mutation, sinon le retour arrière ne peut pas être propre. Et si deux mutations optimistes sont en vol sur la même donnée, un retour arrière naïf de la première écrase la seconde. C'est pour ça que j'utiliserais les mécanismes fournis par la librairie plutôt que de bricoler avec un état local.
+
+[long pause] Parlons correctement d'idempotence, parce que c'est la pièce qui m'importe le plus.
+
+Le problème est le suivant. Le client envoie la requête. Le serveur crée la réservation. La réponse se perd, le réseau tombe, la requête expire. Le client croit à un échec et retente. Résultat : deux réservations et deux débits.
+
+Où naît la clé ? Il y a trois options, et deux sont mauvaises.
+
+Générée par le serveur : impossible. Le serveur ne peut pas savoir que deux requêtes distinctes représentent la même intention utilisateur.
+
+Générée par le client au moment de la requête : cassé, et c'est l'erreur classique. Chaque nouvelle tentative génère une nouvelle clé, donc chaque tentative crée une nouvelle réservation. On a l'impression d'avoir résolu le problème et on ne l'a pas touché.
+
+Générée par le client au moment de l'intention, c'est-à-dire au clic : correct. La même clé est réutilisée pour toutes les tentatives qui appartiennent à cette intention.
+
+[medium pause] Et c'est exactement pour ça que c'est une responsabilité frontend. La clé est liée à l'intention de l'utilisateur, pas à la requête HTTP. Seul le client sait que cette nouvelle tentative est la continuation du même clic. Le serveur ne peut pas le déduire.
+
+Ça couvre trois scénarios d'un coup : le double appui impatient, la nouvelle tentative automatique après expiration, et la resynchronisation d'une action mise en file hors ligne il y a une heure.
+
+Il y a une question plus subtile, celle de savoir quand régénérer la clé. Si l'utilisateur reçoit session complète, rejoint la liste d'attente, puis qu'une place se libère et qu'il réserve à nouveau, c'est une nouvelle intention, donc une nouvelle clé. Réutiliser l'ancienne ferait rejouer l'ancien échec par le serveur. La règle est : une clé par intention, et une nouvelle intention chaque fois que l'utilisateur reprend une décision.
+
+Et un corollaire de portée : la clé doit couvrir la réservation et le paiement associé ensemble. Sinon on protège d'une double réservation mais pas d'un double débit.
+
+Sur les nouvelles tentatives, que retenter et que ne jamais retenter.
+
+Une expiration ou une erreur réseau : oui, avec un délai croissant et de l'aléatoire, parce que c'est transitoire et que l'issue est inconnue. Les erreurs serveur dans les cinq cents : oui, de façon bornée, c'est probablement transitoire. Une réponse de limitation de débit : oui, en respectant l'en-tête qui indique le délai, parce que le serveur vous a dit quoi faire. Une erreur métier dans les quatre cents : non, retenter ne changera rien. Une réponse non autorisée : non, c'est un rafraîchissement de jeton suivi d'un rejeu, ce qui est une réauthentification, pas une nouvelle tentative. Et toute mutation sans clé d'idempotence : non, parce qu'on génèrerait des doublons.
+
+Sur les paramètres. Un délai exponentiel, une seconde, deux, quatre, évite de marteler un serveur qui souffre déjà. L'aléatoire ajouté au délai est indispensable et souvent oublié. Sans lui, tous les clients retentent au même instant et achèvent le serveur exactement au moment où il commence à se relever. Ensuite une borne, trois tentatives, après quoi on rend la main à l'utilisateur avec un bouton explicite. Et une expiration sur chaque tentative, parce qu'un appel réseau sans expiration est un bug qui attend son heure.
+
+[medium pause] Le lien entre les deux sujets, je l'énoncerais explicitement : les nouvelles tentatives et l'idempotence ne sont pas deux sujets, c'en est un seul. Je ne retente automatiquement que des opérations idempotentes. Une nouvelle tentative silencieuse sur une mutation non idempotente est un générateur de doublons.
+
+Il y a aussi un point d'expérience utilisateur. Ne pas retenter en silence pendant dix secondes pendant que l'utilisateur fixe un indicateur sans explication. Au bout de quelques secondes, dire ce qui se passe.
+
+Et sur la prévention du double envoi, je la décrirais en quatre couches. L'interface désactive le bouton, ce qui est nécessaire et très insuffisant. Le client déduplique les mutations en vol. Le protocole porte la clé d'idempotence, et c'est là la vraie protection. Et le serveur impose une contrainte d'unicité en base, qui est le filet de sécurité ultime.
+
+Il faut les quatre, mais seules les couches trois et quatre sont des garanties. Les deux premières sont du confort.
+
+[medium pause] Désactiver le bouton, c'est de l'expérience utilisateur, pas de la correction. Deux onglets, un appel direct à l'API, ou une resynchronisation hors ligne passent devant sans le voir. La vraie garantie, c'est la clé d'idempotence plus une contrainte d'unicité côté serveur. Je peux rendre le chemin heureux instantané. La correction, elle, doit vivre côté serveur.
+
+[long pause] Passons au temps réel.
+
+Sur le transport, il y a trois options. Le polling, où le client demande. Les événements poussés par le serveur, en flux HTTP. Et les WebSockets, qui sont bidirectionnelles.
+
+Le polling est trivial, ne demande aucune infrastructure, se met en cache, et se dégrade proprement. Mais la latence est égale à l'intervalle, et la grande majorité des requêtes reviennent en disant que rien n'a changé.
+
+Le flux d'événements serveur est poussé sur une seule connexion HTTP maintenue ouverte. Trois arguments en sa faveur. C'est du HTTP ordinaire, donc ça traverse les proxys et les pare-feu sans configuration. La reconnexion est automatique et intégrée, avec un en-tête de dernier événement reçu qui permet au serveur de rejouer ce qu'on a manqué. Et le besoin ici est purement unidirectionnel. Ses limites : unidirectionnel, texte seulement, et une limite de connexions dont je parle juste après.
+
+Les WebSockets sont bidirectionnelles et binaires, avec la latence la plus basse. Mais elles sont à état, donc la répartition de charge devient collante, et la reconnexion, les battements de cœur et la reprise après coupure sont à votre charge. Vous payez le bidirectionnel même si vous ne l'utilisez jamais.
+
+Le critère, c'est de savoir si le client a besoin d'émettre en continu.
+
+[medium pause] Pour la disponibilité en direct, le flux d'événements serveur. Le besoin est purement du serveur vers le client, c'est du HTTP simple, et la reconnexion automatique avec le dernier événement reçu permet au serveur de rejouer ce que j'ai manqué. Avec des WebSockets, j'écrirais tout ça moi-même. Je n'irais chercher les WebSockets que là où l'interaction est vraiment bidirectionnelle, comme une sélection de place partagée.
+
+Si vous me demandez pourquoi pas des WebSockets partout, ma réponse est : parce qu'on paierait un canal bidirectionnel, une infrastructure à état et sa propre logique de reconnexion pour servir un besoin unidirectionnel. Le bon transport est le plus simple qui satisfait le besoin.
+
+Un détail technique que je signalerais, parce qu'il pique. Le flux d'événements serveur fonctionne sur n'importe quelle version de HTTP. Ce n'est pas lié à une version, c'est simplement une réponse de type flux d'événements maintenue ouverte, disponible depuis HTML cinq. Ce qui change avec la version, c'est la limite de connexions simultanées par domaine.
+
+En HTTP un point un, le navigateur plafonne à environ six connexions par domaine. Or une connexion de flux d'événements reste ouverte en permanence. Plusieurs onglets sur votre application, ce sont plusieurs flux, et le budget est saturé, donc toutes les autres requêtes se mettent en file derrière. Ce bug est vraiment déroutant à diagnostiquer, parce que le rapport qu'on reçoit dit l'application se fige quand j'ai trois onglets ouverts, ce qui ne ressemble à rien.
+
+En HTTP deux et trois, les requêtes sont multiplexées sur une seule connexion, avec une centaine de flux simultanés, configurables. Le problème disparaît.
+
+[medium pause] Donc : le flux d'événements fonctionne sur toutes les versions de HTTP, mais je voudrais du HTTP deux, sinon le plafond de six connexions par domaine peut affamer toutes les autres requêtes dès que quelques onglets tiennent chacun un flux ouvert.
+
+Deux nuances si vous voulez creuser. La limite est côté navigateur, pas côté serveur. Côté serveur, le coût est le nombre de connexions longues à maintenir, ce qui oriente vers un backend asynchrone. Et il existe une parade même en HTTP un point un : partager un seul flux entre tous les onglets via un worker partagé qui rediffuse. Je ne construirais ça que si le problème se manifestait réellement, sinon c'est de la sur-conception.
+
+Sur le contenu des messages, delta ou instantané complet. Un instantané complet de la session est simple et idempotent, mais lourd s'il est répété souvent. Un delta est minuscule, mais il suppose qu'on a reçu tous les précédents, dans le bon ordre.
+
+Ma réponse, c'est des deltas plus un numéro de version croissant. L'événement porte l'identifiant de la session, une version, et la liste des changements.
+
+Le numéro de version sert à trois choses. Il permet de rejeter un événement arrivé dans le désordre : si je reçois la version cent dix-sept après la cent dix-huit, je l'ignore. Il permet de détecter un trou : si je suis à cent quinze et que je reçois cent dix-huit, j'ai manqué des événements, donc je fais une resynchronisation complète plutôt que d'appliquer un correctif à l'aveugle sur une base incomplète. Et il permet d'ignorer un événement déjà appliqué.
+
+Le piège, c'est qu'un delta sans versionnement est une bombe à retardement. On ne détecte jamais qu'on a raté quelque chose, et l'écran diverge silencieusement de la réalité. Il faut toujours une stratégie de resynchronisation, et c'est exactement ce que le mécanisme de dernier événement reçu rend facile.
+
+Ensuite il y a la réconciliation avec le cache, qui est à mon avis le vrai sujet frontend du temps réel.
+
+Un événement entrant ne doit pas écraser une mutation optimiste en vol. Si je viens de cliquer sur réserver et que mon interface montre déjà la place comme mienne, un événement du serveur qui dit qu'il reste trois places ne doit pas la remettre. La réconciliation doit connaître les mutations en cours.
+
+À la reconnexion, on resynchronise l'état visible plutôt que de rejouer un historique potentiellement long.
+
+On regroupe les mises à jour. Si deux cents places changent en une seconde, on n'applique pas deux cents re-rendus, on agrège sur une image d'animation.
+
+Et on ne s'abonne qu'à ce qui est visible, en se désabonnant quand l'onglet est caché, avec une resynchronisation au retour. C'est un réflexe mobile, la batterie et le budget de connexion, et ça compte dans les conditions réelles où sont nos utilisateurs.
+
+[long pause] Si vous voulez un composant à creuser, je proposerais le sélecteur de place, parce qu'il concentre en un seul endroit tous les problèmes difficiles de cette conception.
+
+C'est le composant du choisissez votre place. Sur certains cours, du spinning avec des vélos numérotés, du pilates sur reformer, on ne réserve pas une place abstraite, on réserve une place précise sur un plan de salle. C'est aussi le seul composant ici qui justifie vraiment une WebSocket.
+
+Le point de conception le plus important, c'est qu'il a trois couches d'état avec trois durées de vie différentes, et ça découle directement du fait que la disponibilité est une projection.
+
+Le plan de salle est une donnée serveur quasi statique, cachable pendant des heures. Il ne change qu'en cas de réaménagement. L'état des places pour cette session est volatile, temps réel, jamais persisté. Et ma sélection courante est un état d'interface purement local, qui n'a aucun sens en dehors du parcours.
+
+[medium pause] Deux ressources séparées avec deux durées de cache différentes. Si je les fusionne dans une seule réponse, je retélécharge tout le plan de salle à chaque mise à jour de disponibilité, ce qui est du pur gaspillage sur un canal qui émet plusieurs fois par seconde.
+
+Sur la concurrence, on pose un verrou optimiste sur la place cliquée pour que le retour soit instantané, mais elle n'est garantie qu'une fois le serveur validé. Si quelqu'un l'a prise entre-temps, on revient en arrière et on dit choisissez une autre place. C'est la même logique que la double réservation, appliquée à une granularité plus fine.
+
+Trois détails font la différence ici.
+
+L'expérience du conflit. L'état place prise à l'instant doit être animé, pas brutal. Une place qui disparaît sèchement pendant qu'on la vise est déroutante. Une transition douce communique ce qui se passe. C'est un petit détail, mais c'est le genre de petit détail qui distingue quelqu'un qui a construit des interfaces de quelqu'un qui les a spécifiées.
+
+La réconciliation. Un événement disant que la place douze est prise ne doit jamais effacer le reste de ma sélection en cours. Le serveur possède les places, le client possède ma sélection. Si le conflit porte vraiment sur une place que j'avais sélectionnée, le serveur gagne et la place disparaît, mais elle disparaît explicitement, avec une explication, jamais en silence.
+
+Et l'accessibilité, que je soulèverais ici sans qu'on me le demande, parce que c'est la chose la plus difficile à rendre accessible dans toute l'application. Une grille visuelle de cases cliquables ne donne rien à un lecteur d'écran. Il faut une sélection au clavier, avec des libellés qui portent à la fois l'information spatiale et l'état, quelque chose comme vélo douze, disponible, premier rang. Et il faut annoncer les changements sans noyer l'utilisateur sous les notifications vocales permanentes.
+
+[medium pause] Le sélecteur de place est la chose la plus difficile à rendre accessible dans cette application. Une grille cliquable ne donne rien à un lecteur d'écran. Il faut une sélection au clavier avec des libellés qui portent la position et le statut, et des annonces en direct qui informent sans être incessantes.
+
+[long pause] Passons au durcissement, en commençant par le hors ligne.
+
+Je le formulerais en quatre niveaux de coût croissant. Le niveau zéro, c'est rien : un écran d'erreur hors ligne. Coût nul, mauvaise expérience. Le niveau un, c'est la lecture en cache : le membre voit son planning et surtout sa réservation à montrer à l'accueil. Coût faible, valeur très élevée. Le niveau deux, c'est l'écriture en file : une réservation optimiste rejouée à la reconnexion. Coût élevé, valeur discutable. Le niveau trois, c'est le hors ligne complet, dont le coût est très élevé.
+
+Le critère, c'est l'usage réel. Le réseau est souvent mauvais dans les studios, fréquemment parce qu'ils sont en sous-sol. Et le besoin dominant dans ce contexte est de consulter et de prouver sa réservation, pas d'en créer une.
+
+Donc : le niveau un systématiquement, le niveau deux seulement si les données d'usage le justifient.
+
+[medium pause] Et voici le point que je défendrais vraiment. La réservation hors ligne est séduisante techniquement et honnêtement discutable en valeur. Je promettrais une place que je ne peux pas garantir. Le membre croit avoir réservé, il se déplace, et il n'y a pas de vélo. Une fonctionnalité qui échoue en silence est pire que son absence. Si on la construisait quand même, l'interface doit dire en attente de confirmation, jamais confirmé.
+
+Si on implémentait quand même l'écriture en file, voici les règles qui déterminent si c'est bon ou non.
+
+L'ordre : rejouer les actions dans l'ordre où elles ont été émises. Réserver puis annuler n'est pas la même chose qu'annuler puis réserver.
+
+L'expiration : une action en file pour un cours déjà passé doit être abandonnée, pas rejouée. Sinon on réserve le cours d'hier.
+
+La compaction : réserver puis annuler avant la resynchronisation devrait s'annuler localement, plutôt que de produire deux appels d'API.
+
+L'idempotence : la clé générée hors ligne protège du doublon si l'action avait en fait réussi avant la coupure.
+
+La notification : si l'utilisateur a fermé l'application, il doit apprendre le résultat autrement. Une notification poussée, ou un état sans ambiguïté à la réouverture.
+
+Et la résolution de conflit : le serveur gagne, sans hésitation. Une place est une ressource exclusive, il n'y a rien à fusionner. Les structures de données répliquées sans conflit sont le mauvais outil ici, et savoir le dire, c'est connaître l'outil et son domaine d'application.
+
+Sur le service worker, j'utiliserais une stratégie par type de ressource plutôt qu'une politique globale. Les fichiers versionnés et les polices, cache d'abord. Le squelette de l'application, cache d'abord avec mise à jour en arrière-plan. Le plan de salle et les disciplines, servir le cache puis revalider. Le planning, réseau d'abord avec repli sur le cache. La disponibilité, réseau uniquement. Les mutations et le paiement, réseau uniquement.
+
+Le piège classique ici est douloureux : un service worker bloqué sur une vieille version. Un service worker mal géré sert indéfiniment une application périmée, et vos utilisateurs ne voient jamais vos correctifs. Il faut une stratégie de mise à jour explicite. Détecter la nouvelle version, et soit inviter au rechargement, soit activer immédiatement, en sachant qu'une activation immédiate peut casser une session en cours si les fichiers changent sous les pieds de l'application.
+
+Et sur le stockage, IndexedDB pour la file d'actions, parce qu'il est asynchrone et transactionnel. Le stockage local est synchrone, donc il bloque le fil principal, et une file corrompue est pire qu'une absence de file. Les jetons restent en mémoire. Trois choses que je prévoirais : le versionnement du schéma avec migration, la purge à la déconnexion, surtout sur un appareil partagé, et le fait que le navigateur peut évincer le stockage sous pression, donc l'application doit fonctionner sans.
+
+[long pause] Sur la stratégie de rendu, je déciderais par surface.
+
+Les plannings publics et les pages studio : génération statique avec revalidation incrémentale. Indexable, identique pour tout le monde, premier affichage rapide.
+
+Une page de détail de cours partageable : rendu serveur. Indexable, mais avec des données fraîches.
+
+L'application membre elle-même : rendu client. Personnalisée, pas de besoin de référencement, très interactive.
+
+Les trois questions qui tranchent, dans l'ordre : le contenu est-il public et indexable, est-il personnalisé, et à quelle fréquence change-t-il ?
+
+[medium pause] Si vous me challengez avec pourquoi pas du rendu serveur partout, puisque c'est meilleur pour la performance, voici ma réponse. Le rendu serveur améliore surtout le premier affichage. À l'intérieur de l'application membre, l'utilisateur est là depuis trente secondes. Le goulot d'étranglement n'est pas le premier affichage, c'est la latence d'interaction : à quelle vitesse le bouton Réserver répond. Le rendu serveur ajouterait du coût serveur et de la complexité d'hydratation pour optimiser une métrique qui n'est pas la contrainte ici. Et ce qui améliore réellement la latence d'interaction sur cet écran, c'est justement la mise à jour optimiste dont on a parlé.
+
+Il y a aussi un piège multi-tenant dans le rendu. Avec un branding par studio, le thème doit être connu avant le premier affichage, sinon on a un flash de contenu non brandé. C'est un vrai argument pour le rendu serveur sur les surfaces publiques, parce que les jetons de style sont injectés côté serveur. En rendu client pur, il faut soit intégrer une feuille de style critique par tenant, soit accepter un écran de chargement neutre.
+
+Et sur le thème lui-même : un build par tenant donne un CSS optimal et zéro flash, mais ça ne passe pas à l'échelle. Mille studios, ce sont mille builds, et un nouveau client attend un déploiement. La réponse, c'est un build unique avec des propriétés personnalisées CSS, avec des jetons résolus le plus tôt possible.
+
+Il y a un angle accessibilité sur le thème qui mérite d'être soulevé. Si un studio choisit du jaune pâle sur du blanc, les rapports de contraste s'effondrent. On valide donc les rapports de contraste au moment où le studio choisit ses couleurs, dans le back-office, et on dérive automatiquement des jetons quand c'est possible. Ce lien entre multi-tenant et accessibilité, peu de gens le font.
+
+[long pause] Sur la performance. Si vous me demandez comment je virtualiserais la liste, ma réponse commence par une question. D'abord, est-ce qu'on en a besoin ? On a dit qu'une journée de cours faisait une vingtaine de cartes. Virtualiser ça, c'est de la sur-ingénierie, et ça me coûte la recherche du navigateur, le lien direct vers un élément, et la sémantique pour les lecteurs d'écran. Je virtualiserais si on affichait un mois sur plusieurs studios.
+
+Et la vraie réponse pour un planning, c'est que la pagination naturelle d'un calendrier est une plage temporelle, pas une page. On navigue par jour ou par semaine.
+
+Sur les re-rendus, comme je le disais, le levier principal n'est pas la mémoïsation, c'est la structure de l'état. Colocaliser. Découper les contextes, parce qu'un contexte qui contient à la fois le thème et la position de défilement re-rend tout à chaque défilement. Et utiliser la composition par enfants, qui évite naturellement de re-rendre les descendants.
+
+La mémoïsation vient après, ciblée sur les frontières qui comptent. Ici, ça veut dire mémoïser la carte de cours pour qu'un événement temps réel sur une session ne re-rende pas les quarante autres. C'est un cas où le gain est structurel et prévisible, pas spéculatif. Et le compilateur React est la direction que prend le framework là-dessus, ce qui rendra une bonne partie de ce travail manuel inutile.
+
+Sur la métrique à optimiser, ça dépend de la surface. Le planning public : le plus grand élément affiché, parce que l'utilisateur arrive de Google et juge en une seconde. L'application membre : la latence d'interaction, parce qu'il est déjà à l'intérieur et que ce qui compte, c'est que Réserver réponde instantanément. Et partout, la stabilité visuelle, pas pour des raisons esthétiques mais parce qu'une mise en page qui saute au moment où la disponibilité se met à jour peut faire cliquer sur le mauvais cours. Ici, une instabilité visuelle produit une erreur de réservation.
+
+Et je mesurerais sur les utilisateurs réels, au soixante-quinzième et au quatre-vingt-quinzième centile plutôt qu'en moyenne. Un score parfait sur un MacBook branché en filaire ne me dit rien d'un Android de milieu de gamme sur réseau mobile dans un sous-sol, qui est exactement notre utilisateur.
+
+Sur le bundle : découpage par route comme base, plus du chargement différé sur les gros morceaux rarement atteints. Le parcours de paiement, le sélecteur de place, qui n'est utile que pour certains cours, et le back-office. Le raffinement que j'aime, c'est le préchargement à l'intention : quand l'utilisateur survole le bouton Réserver, on charge le morceau de la modale. Le code arrive avant le clic, et la latence n'est jamais visible.
+
+Le piège, c'est que trop de découpage produit une cascade de requêtes de morceaux qui coûte plus cher que le monolithe qu'on a évité. Et chaque frontière de chargement différé a besoin d'une barrière d'erreur avec nouvelle tentative, sinon une connexion qui lâche pendant le chargement d'un morceau casse l'application.
+
+[long pause] Venons-en aux fuseaux horaires, qui sont à mon avis le sujet le plus traître d'une application de planning.
+
+Le principe, c'est l'heure locale du studio, toujours. Un cours à dix-huit heures à Barcelone est à dix-huit heures pour tout le monde. Un membre parisien qui consulte doit voir dix-huit heures. C'est une propriété du lieu, pas de l'observateur.
+
+Le corollaire technique : les instants transitent en temps universel, le fuseau du studio accompagne la donnée, et le rendu se fait dans ce fuseau. Le fuseau de l'appareil ne sert que pour les affichages relatifs, ou pour avertir un membre en voyage.
+
+Les pièges sont vicieux. Le changement d'heure. Un cours récurrent à dix-huit heures locales reste à dix-huit heures après le passage à l'heure d'hiver, alors que son instant en temps universel se décale. Donc la récurrence se définit en heure locale, pas en temps universel. Générer les occurrences en ajoutant cent soixante-huit heures à un instant universel produit des cours décalés d'une heure, deux fois par an. C'est un bug classique, embarrassant, et difficile à diagnostiquer parce qu'il ne se manifeste que deux fois par an.
+
+Ensuite il y a l'heure qui n'existe pas, et l'heure qui existe deux fois. Au passage à l'heure d'été, deux heures trente n'existe pas. Au retour, elle existe deux fois. Un cours planifié à ce moment-là a besoin d'une règle explicite.
+
+Et le rendu serveur : le serveur ne doit pas formater dans son propre fuseau, sinon le HTML rendu et l'hydratation divergent.
+
+Sur l'outillage, l'API Temporal est conçue pour ça et rend ces cas explicites. En attendant, date-fns-tz ou Luxon. J'éviterais de manipuler des objets Date natifs à la main pour de la logique de fuseau.
+
+[medium pause] En une phrase : générer les occurrences récurrentes en ajoutant cent soixante-huit heures en temps universel décale silencieusement chaque cours d'une heure, deux fois par an. La récurrence se définit en heure locale. C'est la chose que je m'assurerais de faire correctement dès le premier jour, parce que c'est peu coûteux maintenant et que c'est un cauchemar de support plus tard.
+
+Sur l'internationalisation. J'utiliserais le format de message ICU plutôt que des clés plates, parce qu'il gère correctement les pluriels. Le russe a plusieurs formes, l'arabe en a six. Et il gère le genre. Une interpolation naïve du type tant de places restantes casse au singulier et dans la moitié des langues qu'on voudrait supporter.
+
+Le formatage passe par l'API Intl native pour les dates, les nombres, les devises et les listes, plutôt que par des tables maison.
+
+Deux choses que j'intégrerais tôt parce qu'elles sont gratuites maintenant et coûteuses plus tard : les propriétés CSS logiques, marge en début de ligne plutôt que marge à gauche, au cas où l'écriture de droite à gauche arriverait un jour. Et tester la mise en page dans une langue verbeuse plutôt qu'en anglais. L'allemand est souvent trente pour cent plus long, et un bouton dimensionné sur du texte français casse.
+
+Et un cas à décider consciemment : les descriptions de cours sont saisies par les studios, donc elles ne sont pas traduites. Que voit un membre qui ne parle pas cette langue ? Souvent la réponse est rien de spécial, mais je préfère le décider que le découvrir en production.
+
+[long pause] Sur la sécurité. Le stockage des jetons d'abord. Le stockage local est trivial mais il est lisible en JavaScript, donc exfiltrable par n'importe quelle injection de script, y compris une qui viendrait d'une dépendance compromise. Un cookie inaccessible au JavaScript ne l'est pas. La meilleure combinaison, c'est le jeton d'accès en mémoire et le jeton de rafraîchissement dans un cookie inaccessible au script, avec rotation et détection de réutilisation.
+
+[medium pause] Il y a là une nuance qui compte plus que la réponse elle-même. On entend souvent que si vous avez une injection de script, vous avez déjà perdu. C'est une demi-vérité. Le cookie inaccessible au script ne rend pas l'injection inoffensive, un attaquant peut toujours agir depuis la page à l'intérieur de la session. Mais ça l'empêche d'exfiltrer un jeton pour s'en servir ailleurs et plus tard, ce qui change le rayon d'impact et la durée de la compromission. C'est de la défense en profondeur, pas un correctif.
+
+Dans ce produit précisément, les descriptions de cours sont saisies par les studios, donc il y a une vraie surface d'injection. Assainissement systématique, prudence extrême avec tout ce qui insère du HTML brut, et une politique de sécurité de contenu stricte.
+
+Et le multi-tenant est aussi un sujet de sécurité, et c'est le point que je voudrais le moins rater : chaque clé de cache doit inclure l'identifiant du studio. L'oublier ne produit pas un bug d'expérience, ça fait fuiter les données d'un studio dans l'application d'un autre. Dans un logiciel en service business to business to consumer, c'est un incident majeur.
+
+Sur le paiement, les champs de carte restent dans les champs hébergés du prestataire, pour que les données ne touchent jamais mon état ni mon périmètre de conformité.
+
+Sur l'accessibilité, le périmètre sur lequel je m'engagerais, c'est le niveau WCAG double A sur les parcours critiques : consulter, réserver, annuler, payer. Des tests automatisables en intégration continue, plus un audit manuel sur ces parcours.
+
+Concrètement sur cet écran : la gestion du focus dans la modale, en le piégeant puis en le restaurant sur le déclencheur. Le sélecteur de place, qui est la pièce la plus difficile, comme je l'ai dit. Des régions vivantes pour annoncer les changements de disponibilité, utilisées avec parcimonie, sinon le lecteur d'écran devient inutilisable. Les contrastes du thème du tenant. Et des cibles tactiles suffisamment grandes.
+
+[medium pause] L'argument que j'utiliserais en réunion de planification n'est pas l'argument moral. Rattraper l'accessibilité après coup coûte plusieurs fois plus cher que de la construire dès le départ, parce que ça touche la structure du DOM, la sémantique et l'ordre de focus, pas le style. C'est un argument de coût autant qu'un argument éthique. Et sur un produit de bien-être, la population concernée est surreprésentée, pas marginale.
+
+[long pause] Sur l'observabilité et le débogage, j'y penserais en quatre couches.
+
+Les erreurs : un suivi avec du contexte, le tenant, la route, la version, et les cartes de correspondance de sources, sans lesquelles les piles d'appels minifiées sont inutilisables.
+
+La performance réelle : de la mesure sur les vrais appareils des utilisateurs, segmentée par type d'appareil et de réseau, lue au soixante-quinzième et au quatre-vingt-quinzième centile plutôt qu'en moyenne. Une moyenne cache exactement les utilisateurs qui souffrent.
+
+Les traces : un identifiant de trace propagé du clic jusqu'au backend. Ça permet de suivre une réservation ratée de bout en bout, et ça ne coûte qu'un en-tête. C'est le levier de débogage qui change le plus la vie en production.
+
+Et les métriques métier, qui sont les plus importantes et les plus souvent oubliées.
+
+Le taux de complétion du tunnel de réservation est la métrique reine. Le taux d'échec par code d'erreur : une hausse des échecs de paiement est un incident, même si aucun serveur n'est tombé. Le temps de confirmation perçu, du clic au retour visuel, pas la latence de l'API. Et le taux de retour arrière optimiste, que j'aime beaucoup : si les places sont prises entre l'affichage et le clic beaucoup plus souvent qu'avant, c'est que la disponibilité temps réel est en retard. C'est une métrique qui diagnostique une couche technique par un symptôme visible de l'utilisateur.
+
+[medium pause] Le point sur lequel je conclurais l'observabilité est celui-ci. Un frontend peut être en parfaite santé, zéro erreur JavaScript, latence normale, tous les services au vert, et complètement cassé, parce qu'un bouton s'est retrouvé invisible à un point de rupture, ou qu'une condition bloque une étape du parcours. Aucune supervision technique n'attrape ça. Seule la complétion du tunnel le fait. J'alerterais donc sur le taux de complétion des réservations, pas seulement sur le taux d'erreur.
+
+[long pause] Sur la preuve de concept face à la production, puisque c'est un arbitrage que vous évoquez.
+
+Ce que je différerais pour une preuve de concept : le hors ligne complet, le canal temps réel, le rendu serveur et le référencement, la virtualisation, une internationalisation exhaustive, un système de design complet.
+
+Ce que je ne différerais jamais : la protection contre la double réservation par l'idempotence, des états d'erreur clairs et typés, l'affichage d'horaires justes, ne jamais montrer une fausse confirmation, la sécurité de base, et l'accessibilité au clavier sur les parcours critiques.
+
+[medium pause] Le critère derrière cette frontière est le suivant. Ce qui est différable, c'est ce que je peux ajouter plus tard sans rien casser ni tromper personne. Ce qui ne l'est pas, c'est tout ce dont l'absence produit un mensonge à l'utilisateur, ou fait perdre de l'argent au studio.
+
+Et pour relier les défauts techniques aux conséquences métier : un tunnel lent ou confus, c'est de l'abandon, donc une fréquentation en baisse. Une double réservation, c'est un litige, un remboursement, et de la confiance perdue. Une place fantôme, c'est un membre debout dans la salle sans machine. Un mauvais fuseau, c'est un cours raté. Un état non éligible mal géré, c'est une vente manquée. Et pas de hors ligne, c'est un membre bloqué à l'accueil sans réseau.
+
+[medium pause] La posture que j'énoncerais là-dessus : une preuve de concept réduit le périmètre, elle ne réduit pas la correction. Réduire ce qu'on supporte est légitime. Réduire le fait que ce soit juste ne l'est pas.
+
+[long pause] Si vous me poussez côté backend, voilà à peu près ce que je dirais, et où je trace la limite.
+
+Sur la double réservation, la garantie ne peut pas venir du client. Le serveur sérialise les écritures concurrentes, avec une opération atomique du type décrémente s'il reste de la place. Ce que j'en retiens comme ingénieur frontend, c'est que le serveur est la source de vérité, et que mon travail est de gérer élégamment son refus.
+
+Sur le verrou puis confirmation, si le paiement prend du temps, le serveur pose un verrou temporaire avec expiration, puis confirme. D'où l'état en attente et le compte à rebours dans mon interface.
+
+Sur la cohérence entre le paiement et la réservation, entre deux services on utilise une saga, c'est-à-dire des étapes compensables : si le paiement échoue après la réservation, une action compensatoire annule ou rembourse. Et la conséquence frontend est directe : la confirmation peut être asynchrone, donc il me faut un état en cours de confirmation et un moyen d'apprendre le résultat, que ce soit par le canal temps réel, par interrogation régulière, ou par notification.
+
+Sur le cache serveur, mes chiffres de disponibilité peuvent être servis depuis un cache. Donc une valeur légèrement périmée est normale, ce qui reboucle exactement sur le principe que la disponibilité est une indication et non une garantie.
+
+[medium pause] Mais voici comment je trace la frontière. La garantie de correction doit vivre côté serveur. Je ne peux pas empêcher la double réservation depuis le client, et je n'essaierais pas. Mon travail, c'est de rendre le chemin optimiste instantané et le chemin de refus élégant. Ce qui m'importe côté API, c'est que le contrat me donne des raisons typées, pour que je puisse transformer chaque échec en la bonne expérience.
+
+Et si vous me poussez sur quelque chose que je ne sais vraiment pas, je préfère le dire. Je n'ai pas construit cette pièce précise. Voilà comment je raisonnerais dessus, et voilà qui je voudrais dans la pièce pour valider.
+
+Sur le temps, si je sens qu'on est court : il me reste une quinzaine de minutes. Je préfère approfondir une chose de plus que survoler trois. Vous préférez la réconciliation temps réel, ou la façon dont je superviserais ça en production ?
+
+[long pause] Et pour résumer où nous en sommes arrivés.
+
+J'ai commencé par un client simple qui récupère et réserve, puis je l'ai durci dans quatre directions. Des mises à jour optimistes avec une clé d'idempotence générée par le client, pour que l'application paraisse instantanée et que les nouvelles tentatives soient sûres. Un flux d'événements serveur pour la disponibilité en direct, parce que le besoin est unidirectionnel et que la reconnexion vient gratuitement. Du hors ligne en lecture d'abord, parce que le réseau est mauvais dans les salles et que ce dont les gens ont besoin là-bas, c'est de montrer leur réservation. Et des erreurs typées de bout en bout, parce que trois des modes d'échec sont en réalité des opportunités de vente. La chose que je voudrais valider en premier avec votre équipe, c'est la politique de promotion depuis la liste d'attente, parce que c'est une décision produit qui façonne une grande partie de l'interface.
+
+[long pause] J'ai quelques questions pour vous, s'il reste du temps.
+
+Côté technique : où en est le frontend aujourd'hui, est-ce un monolithe, des modules, plusieurs applications ? Qu'est-ce qui fait le plus mal en ce moment ? Comment gérez-vous le thème multi-tenant actuellement ? Est-ce que le web et le mobile partagent du code, et jusqu'où ? Et qui décide des contrats d'API, est-ce que les équipes frontend sont impliquées en amont, ou reçoivent-elles ce qui existe déjà ?
+
+Côté organisation : comment les équipes sont-elles découpées, par fonctionnalité, par surface, par domaine ? Y a-t-il une notion de plateforme frontend, ou chaque équipe gère-t-elle sa propre pile ? Et quel serait l'impact attendu sur mes six premiers mois ?
+
+Et côté produit : quelle est la contrainte la plus difficile aujourd'hui, est-ce l'échelle, la variété des studios, ou l'international ?
+
+Merci, c'était une bonne conversation.
+

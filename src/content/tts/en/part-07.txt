@@ -1,0 +1,29 @@
+On the counter itself, derived or materialized. Derived, meaning counting bookings on every read, is always exact and impossible to desynchronize, but expensive when the schedule is read massively. Materialized, meaning a counter on the session updated on every write, is instantaneous to read, and it's also that counter which carries the no-overbooking invariant on the server side. In exchange it can drift if there's a bug, so it needs periodic reconciliation. Given the read-write ratio we established, hundreds of reads per write, I'd go materialized.
+
+And there are three states, not two. Free, meaning no occupancy. Held, a temporary lock with an expiry, meaning someone is in the middle of paying. And booked, a confirmed reservation.
+
+Without the held state, you face an impossible choice. Either you book on click, and an abandoned payment blocks the spot indefinitely. Or you only book after payment, and two people can pay for the same spot. A hold with an expiry resolves that, and it's exactly what explains the pending state on the booking and the countdown in the interface.
+
+On top of that there are unavailabilities that don't come from members at all: a broken machine, a spot reserved for staff.
+
+[medium pause] And here's the principle that governs everything downstream. Whatever number the server gives me for spots left, it's a hint, not a guarantee. It might come from a cache, it might be two hundred milliseconds old, and someone may be mid-payment on the last seat. The only moment truth exists is the response to the booking request.
+
+[medium pause] Which means the rejection path isn't an edge case I handle at the end. It's a nominal path I design from the start. The spot was just taken, here are three alternatives, has to be as polished as the success screen.
+
+[long pause] Let me talk about the API contract, because I don't think a frontend engineer should be a passive consumer of it. I'd negotiate it, and I have four arguments I'd bring.
+
+First, enriched responses. Does the server return sessions with the discipline, the instructor, spots left and eligibility already embedded, or references I have to fetch separately?
+
+Normalized gives a compact payload but causes a waterfall. Sessions, then instructors, then disciplines. Each hop costs a round-trip. Enriched gives a bigger payload with duplication, the same instructor repeated forty times, but a single round-trip.
+
+The criterion that settles it is the cost of a round-trip on the target network. On mediocre mobile data in a basement, each hop costs somewhere between one hundred and three hundred milliseconds. Three hops in a chain is a second of blank screen.
+
+[medium pause] So: I optimize for round-trips, not payload size. Duplicating an instructor forty times costs a couple of kilobytes after compression. An extra waterfall costs hundreds of milliseconds of blank screen. Bandwidth is abundant, latency isn't.
+
+[short pause] Second, eligibility. Who computes whether this member can book this class?
+
+Client-side, from the pack and the session, is reactive and works offline. But it duplicates a business rule across three clients, web, mobile and back-office, and those three copies will drift. The day a studio adds a time restriction to a pack, you display bookable for a class the API will refuse.
+
+Server-side, returned as a field with a typed reason, means one implementation, and it can evolve without redeploying clients.
+
+The criterion is: is this a business rule or a presentation rule? Eligibility is a business rule. It changes, it has exceptions, and it's worth money. So the server decides, the client presents. The server returns whether I can book, and the typed reason why not, and the client maps that reason onto an interface.

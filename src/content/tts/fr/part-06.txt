@@ -1,0 +1,25 @@
+Le lieu permet à un studio d'avoir plusieurs adresses, potentiellement dans des fuseaux différents. La salle porte la capacité et le plan. La discipline porte un nom et une couleur, ce qui alimente le filtrage et le code visuel du planning. Et le professeur compte plus qu'on ne le croit, parce que beaucoup de membres choisissent le cours d'une personne précise plutôt que du yoga à dix-huit heures. Je prévois donc le filtre par professeur, et l'affichage du remplaçant quand il y en a un.
+
+La planification est l'endroit où se trouve la subtilité de modélisation, alors prenons un moment.
+
+Un modèle de cours est la définition récurrente. Vinyasa, tous les mardis à dix-huit heures, salle deux, quarante-cinq minutes, ce professeur, quinze places, un crédit. Il porte une règle de récurrence.
+
+Une session est l'occurrence datée concrète. C'est ce qu'on réserve réellement. Elle porte son instant de début en temps universel, son fuseau, sa capacité, son compteur de réservations, son statut, et les exceptions propres à cette occurrence : un professeur remplaçant, une salle changée, un cours annulé.
+
+Ce qui soulève un arbitrage : est-ce qu'on matérialise les occurrences, ou est-ce qu'on les génère à la volée depuis la règle ?
+
+Générer à la volée ne coûte rien en stockage. Mais une occurrence générée n'a pas d'identité stable, donc on ne peut pas y attacher une réservation, une annulation ou un remplaçant. Et gérer les exceptions à l'intérieur d'une règle de récurrence devient vite ingérable.
+
+Matérialiser chaque occurrence donne à chacune une identité, et donc la possibilité d'y accrocher des données. Mais jusqu'où dans le futur génère-t-on ?
+
+La réponse est un horizon glissant. On matérialise sur quelques mois, et un travail de fond regénère au fil du temps. Ça concilie identité stable et stockage borné.
+
+Et voilà la vraie question, que je soulèverais même si vous ne me la posiez pas : que se passe-t-il quand la règle change ? Le professeur change tous les mardis à partir de septembre. Est-ce qu'on modifie les occurrences déjà matérialisées ? Toutes, ou seulement les futures ? Et celles qui ont déjà des réservations ?
+
+C'est exactement le problème modifier cet événement, tous les événements, ou tous les suivants, qu'on connaît dans Google Agenda. Et ça a une conséquence frontend directe. L'interface de back-office doit poser la question à l'utilisateur plutôt que de deviner, et l'application membre doit gérer le cas où le cours que vous avez réservé a changé de professeur ou de salle, avec une notification claire.
+
+Enfin, la place n'existe que pour les cours à place attribuée. Un identifiant, un libellé comme vélo douze, une position dans le plan, et un type : standard, accessible, ou hors service.
+
+Côté réservation, une réservation porte la session, le membre, éventuellement la place, son statut, et sa clé d'idempotence. Son cycle de vie est une véritable machine à états. En attente peut devenir confirmée, ou expirer si un verrou n'est pas confirmé à temps. Confirmée peut devenir présente quand la personne vient, ou absente quand elle ne vient pas, ce qui peut déclencher une pénalité selon la politique du studio. Et le membre comme le studio peuvent annuler. Séparément, une entrée en liste d'attente devient confirmée quand une place se libère.
+
+Il y a un point qui mérite d'être fait ici, parce qu'il illustre le principe du simple d'abord sur un cas concret. L'état en attente n'existe que s'il y a un verrou temporaire pendant qu'un paiement se déroule. Si la réservation est couverte par un pack de crédits, le débit est instantané et on passe directement en confirmée.

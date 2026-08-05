@@ -1,0 +1,21 @@
+Sur la métrique à optimiser, ça dépend de la surface. Le planning public : le plus grand élément affiché, parce que l'utilisateur arrive de Google et juge en une seconde. L'application membre : la latence d'interaction, parce qu'il est déjà à l'intérieur et que ce qui compte, c'est que Réserver réponde instantanément. Et partout, la stabilité visuelle, pas pour des raisons esthétiques mais parce qu'une mise en page qui saute au moment où la disponibilité se met à jour peut faire cliquer sur le mauvais cours. Ici, une instabilité visuelle produit une erreur de réservation.
+
+Et je mesurerais sur les utilisateurs réels, au soixante-quinzième et au quatre-vingt-quinzième centile plutôt qu'en moyenne. Un score parfait sur un MacBook branché en filaire ne me dit rien d'un Android de milieu de gamme sur réseau mobile dans un sous-sol, qui est exactement notre utilisateur.
+
+Sur le bundle : découpage par route comme base, plus du chargement différé sur les gros morceaux rarement atteints. Le parcours de paiement, le sélecteur de place, qui n'est utile que pour certains cours, et le back-office. Le raffinement que j'aime, c'est le préchargement à l'intention : quand l'utilisateur survole le bouton Réserver, on charge le morceau de la modale. Le code arrive avant le clic, et la latence n'est jamais visible.
+
+Le piège, c'est que trop de découpage produit une cascade de requêtes de morceaux qui coûte plus cher que le monolithe qu'on a évité. Et chaque frontière de chargement différé a besoin d'une barrière d'erreur avec nouvelle tentative, sinon une connexion qui lâche pendant le chargement d'un morceau casse l'application.
+
+[long pause] Venons-en aux fuseaux horaires, qui sont à mon avis le sujet le plus traître d'une application de planning.
+
+Le principe, c'est l'heure locale du studio, toujours. Un cours à dix-huit heures à Barcelone est à dix-huit heures pour tout le monde. Un membre parisien qui consulte doit voir dix-huit heures. C'est une propriété du lieu, pas de l'observateur.
+
+Le corollaire technique : les instants transitent en temps universel, le fuseau du studio accompagne la donnée, et le rendu se fait dans ce fuseau. Le fuseau de l'appareil ne sert que pour les affichages relatifs, ou pour avertir un membre en voyage.
+
+Les pièges sont vicieux. Le changement d'heure. Un cours récurrent à dix-huit heures locales reste à dix-huit heures après le passage à l'heure d'hiver, alors que son instant en temps universel se décale. Donc la récurrence se définit en heure locale, pas en temps universel. Générer les occurrences en ajoutant cent soixante-huit heures à un instant universel produit des cours décalés d'une heure, deux fois par an. C'est un bug classique, embarrassant, et difficile à diagnostiquer parce qu'il ne se manifeste que deux fois par an.
+
+Ensuite il y a l'heure qui n'existe pas, et l'heure qui existe deux fois. Au passage à l'heure d'été, deux heures trente n'existe pas. Au retour, elle existe deux fois. Un cours planifié à ce moment-là a besoin d'une règle explicite.
+
+Et le rendu serveur : le serveur ne doit pas formater dans son propre fuseau, sinon le HTML rendu et l'hydratation divergent.
+
+Sur l'outillage, l'API Temporal est conçue pour ça et rend ces cas explicites. En attendant, date-fns-tz ou Luxon. J'éviterais de manipuler des objets Date natifs à la main pour de la logique de fuseau.

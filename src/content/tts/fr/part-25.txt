@@ -1,0 +1,11 @@
+J'ai commencé par un client simple qui récupère et réserve, puis je l'ai durci dans quatre directions. Des mises à jour optimistes avec une clé d'idempotence générée par le client, pour que l'application paraisse instantanée et que les nouvelles tentatives soient sûres. Un flux d'événements serveur pour la disponibilité en direct, parce que le besoin est unidirectionnel et que la reconnexion vient gratuitement. Du hors ligne en lecture d'abord, parce que le réseau est mauvais dans les salles et que ce dont les gens ont besoin là-bas, c'est de montrer leur réservation. Et des erreurs typées de bout en bout, parce que trois des modes d'échec sont en réalité des opportunités de vente. La chose que je voudrais valider en premier avec votre équipe, c'est la politique de promotion depuis la liste d'attente, parce que c'est une décision produit qui façonne une grande partie de l'interface.
+
+[long pause] J'ai quelques questions pour vous, s'il reste du temps.
+
+Côté technique : où en est le frontend aujourd'hui, est-ce un monolithe, des modules, plusieurs applications ? Qu'est-ce qui fait le plus mal en ce moment ? Comment gérez-vous le thème multi-tenant actuellement ? Est-ce que le web et le mobile partagent du code, et jusqu'où ? Et qui décide des contrats d'API, est-ce que les équipes frontend sont impliquées en amont, ou reçoivent-elles ce qui existe déjà ?
+
+Côté organisation : comment les équipes sont-elles découpées, par fonctionnalité, par surface, par domaine ? Y a-t-il une notion de plateforme frontend, ou chaque équipe gère-t-elle sa propre pile ? Et quel serait l'impact attendu sur mes six premiers mois ?
+
+Et côté produit : quelle est la contrainte la plus difficile aujourd'hui, est-ce l'échelle, la variété des studios, ou l'international ?
+
+Merci, c'était une bonne conversation.

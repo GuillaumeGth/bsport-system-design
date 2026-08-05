@@ -1,0 +1,25 @@
+The booking funnel completion rate is the headline metric. Failure rate by error code: a rise in payment failures is an incident, even if no server went down. Perceived confirmation time, from click to feedback, not API latency. And the optimistic rollback rate, which I like a lot: if spots are being taken between render and click far more often than before, it means your real-time availability is lagging. That's a metric that diagnoses a technical layer through a user-visible symptom.
+
+[medium pause] The point I'd close observability on is this. A frontend can be perfectly healthy, zero JavaScript errors, normal latency, every service green, and completely broken, because a button ended up invisible at one breakpoint or a condition blocked one step of the flow. No technical monitoring catches that. Only funnel completion does. So I'd alert on booking completion rate, not just error rate.
+
+[long pause] On proof of concept versus production, since that's a trade-off you asked about.
+
+What I'd defer for a proof of concept: full offline support, the real-time channel, server rendering and search indexing, virtualization, exhaustive internationalization, a complete design system.
+
+What I'd never defer: double-booking protection through idempotency, clear typed error states, displaying correct times, never showing a false confirmation, basic security, and keyboard accessibility on the critical journeys.
+
+[medium pause] The criterion behind that line is this. What's deferrable is what I can add later without breaking anything or misleading anyone. What isn't deferrable is anything whose absence produces a lie to the user, or loses the studio money.
+
+And to connect the technical defects to business consequences: a slow or confusing funnel means abandonment, which means attendance drops. A double booking means a dispute, a refund, and lost trust. A phantom spot means a member standing in the room with no machine. A wrong timezone means a missed class. Mishandling the ineligible state means a missed sale. And no offline support means a member stuck at the front desk with no signal.
+
+[medium pause] The posture I'd state on this: a proof of concept narrows scope, it doesn't lower correctness. Reducing what we support is legitimate. Reducing whether it's right isn't.
+
+[long pause] If you push me on the backend side, here's roughly what I'd say, and where I'd draw the line.
+
+On double booking, the guarantee can't come from the client. The server serializes concurrent writes, with an atomic operation along the lines of decrement if there's capacity left. What I take from that as a frontend engineer is that the server is the source of truth, and my job is to handle its refusal gracefully.
+
+On hold and confirm, if payment takes time, the server places a temporary lock with an expiry, then confirms. Which is where the pending state and the countdown in my interface come from.
+
+On consistency between payment and booking, across two services you'd use a saga, meaning compensable steps: if payment fails after the booking, a compensating action cancels or refunds. And the frontend consequence is direct: confirmation can be asynchronous, so I need a confirming state and a way to learn the outcome, whether that's the real-time channel, polling, or a notification.
+
+On server-side caching, my availability numbers may be served from a cache. So a slightly stale value is normal, which loops right back to availability being a hint rather than a guarantee.

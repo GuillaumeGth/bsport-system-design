@@ -1,0 +1,19 @@
+Laissez-moi structurer ça. Je vais passer quelques minutes à clarifier les besoins et mes hypothèses, puis esquisser une architecture générale, entrer dans le modèle de données et le contrat d'API, et ensuite creuser les parties qui vous intéressent le plus. Je soupçonne que ce sera le tunnel de réservation et la disponibilité temps réel. Est-ce que ça vous va ?
+
+Très bien. Avant de concevoir quoi que ce soit, je veux clarifier le problème et énoncer mes hypothèses à voix haute, parce que ces hypothèses sont les entrées de toutes les décisions que je prendrai ensuite. Je vais poser quelques questions, et pour chacune je vais dire pourquoi je la pose, parce que la réponse change quelque chose de précis dans la conception.
+
+D'abord, de quelle surface parle-t-on ? L'application membre brandée, ou le back-office studio ? Je demande parce que les contraintes ne sont vraiment pas les mêmes. L'une est grand public, pensée mobile d'abord, utilisée par petites touches par quelqu'un debout dans un couloir. L'autre est un outil de travail ouvert sur un écran de bureau toute la journée. Si vous n'avez pas de préférence, je pars sur l'application membre, parce que c'est le cœur du produit et le cas le plus riche.
+
+[short pause] Ensuite, quel parcours exactement ? Consulter un planning, réserver, annuler, rejoindre une liste d'attente, choisir sa place, acheter un pack, payer. Chacun de ces éléments ajoute une dimension. Si c'est moi qui choisis, je prends consulter, réserver et annuler comme cœur, et je traite la liste d'attente et la sélection de place comme des raffinements sur lesquels je reviens une fois la base solide. Ça pose ma première version et mes approfondissements en une phrase.
+
+[short pause] Troisième question : un membre est rattaché à un studio, ou à plusieurs ? Ça décide si le contexte du tenant est fixe, une application brandée pour un studio, ou variable, plutôt façon place de marché. Les conséquences sur le cache et la navigation sont importantes, donc je préfère le savoir maintenant que le rattraper plus tard.
+
+[short pause] Quatrième question : les plannings sont-ils publics et indexables ? Un studio veut être trouvé sur Google quand quelqu'un cherche du pilates près de Bastille. Si oui, j'ai un besoin de référencement, et ça contraint ma stratégie de rendu.
+
+Passons au non-fonctionnel, qui est ce qui pilote réellement l'architecture.
+
+Est-ce que la disponibilité doit se mettre à jour en direct, et avec quelle latence acceptable ? La différence entre quelques secondes de retard tolérables, et il faut que ça bouge instantanément, c'est la différence entre un rafraîchissement périodique et un canal poussé par le serveur. Je ne veux pas supposer le second simplement parce qu'il est plus intéressant à construire.
+
+Quelles sont les conditions réseau réelles ? C'est la question que personne ne pose et c'est celle qui change le plus de choses. Une application utilisée sur un bon wifi de bureau, et une application utilisée sur une connexion mobile capricieuse au sous-sol d'un studio, n'appellent pas les mêmes compromis. Beaucoup de vos salles sont en sous-sol, ce qui est une contrainte concrète et vérifiable. C'est ce qui justifiera plus tard mon insistance sur la réduction des allers-retours réseau et sur la lecture hors ligne.
+
+Quels appareils vise-t-on ? Un Android d'entrée de gamme n'a pas le budget de calcul d'un iPhone récent. Ça détermine si la virtualisation et la maîtrise des re-rendus sont un confort ou une nécessité.

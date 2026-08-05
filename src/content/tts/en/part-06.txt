@@ -1,0 +1,23 @@
+There's a point worth making here, because it illustrates the simple-first principle on a concrete case. The pending state only exists if there's a temporary hold while a payment goes through. If the booking is covered by a credit pack, the debit is instantaneous and we go straight to confirmed.
+
+[medium pause] So I wouldn't introduce hold-and-confirm by default. It brings a time-to-live, an expiry job, a pending state, a countdown in the interface, and hold release on abandon. That's a lot of machinery, and a credit-pack booking doesn't need any of it. I'd add it exactly when a card payment sits between the intent and the confirmation.
+
+The waitlist entry raises a product question I'd rather ask you than answer alone. When a spot frees up, is the first person on the list booked automatically, or do they get an invitation to accept within a time window?
+
+Automatic maximizes occupancy, which is the studio's interest. Opt-in protects the member from being committed without wanting it, debited a credit, and possibly penalized for a no-show because they never read the notification. And the right answer depends on the delay: twenty-four hours before the class, opt-in is reasonable. Twenty minutes before, an acceptance window just leaves the spot empty.
+
+[medium pause] That's a product call more than an engineering one. I'd probably go hybrid based on time to class, but I'd want to know whether studios penalize no-shows, because auto-booking someone who then gets penalized for not showing up is the worst of both worlds.
+
+And on billing, the membership or pack carries the subscription type, remaining credits, validity, and restrictions on which disciplines or studios are allowed. That's what drives eligibility, and eligibility is a major point for the interface, because being able to book doesn't only depend on spots remaining, it also depends on the pack. I'll come back to that when I talk about interface states, because it's the point most people miss.
+
+[long pause] Now, availability. This is a modelling point where it's easy to get it wrong, and getting it right is very visible.
+
+[medium pause] Availability is not a stored attribute. It's a projection. Availability equals capacity, which is static, minus occupancy, which is dynamic.
+
+A seat has no is-available field. It can't have one: bike twelve is taken at six and free at seven. Availability is a property of the pair, seat and session, not of the seat. If you store it on the seat, your model breaks at the second session of the day.
+
+The consequence for the contract is that the client consumes a list of seat availability, seat identifier plus status, per session, kept separate from the floor plan.
+
+There are two regimes. Anonymous capacity, where there are no individual spots, just a counter, so the session carries capacity and booked count. And assigned seats, where there are real seat entities and availability is computed seat by seat.
+
+The point to make is that the second contains the first. If you have seats, you can derive the counter. But you don't make classes that don't need a floor plan pay for the complexity of one. The floor plan is optional, and the interface switches between a simple flow and the seat selector depending on whether one exists.

@@ -1,0 +1,23 @@
+Le plan de salle est une donnée serveur quasi statique, cachable pendant des heures. Il ne change qu'en cas de réaménagement. L'état des places pour cette session est volatile, temps réel, jamais persisté. Et ma sélection courante est un état d'interface purement local, qui n'a aucun sens en dehors du parcours.
+
+[medium pause] Deux ressources séparées avec deux durées de cache différentes. Si je les fusionne dans une seule réponse, je retélécharge tout le plan de salle à chaque mise à jour de disponibilité, ce qui est du pur gaspillage sur un canal qui émet plusieurs fois par seconde.
+
+Sur la concurrence, on pose un verrou optimiste sur la place cliquée pour que le retour soit instantané, mais elle n'est garantie qu'une fois le serveur validé. Si quelqu'un l'a prise entre-temps, on revient en arrière et on dit choisissez une autre place. C'est la même logique que la double réservation, appliquée à une granularité plus fine.
+
+Trois détails font la différence ici.
+
+L'expérience du conflit. L'état place prise à l'instant doit être animé, pas brutal. Une place qui disparaît sèchement pendant qu'on la vise est déroutante. Une transition douce communique ce qui se passe. C'est un petit détail, mais c'est le genre de petit détail qui distingue quelqu'un qui a construit des interfaces de quelqu'un qui les a spécifiées.
+
+La réconciliation. Un événement disant que la place douze est prise ne doit jamais effacer le reste de ma sélection en cours. Le serveur possède les places, le client possède ma sélection. Si le conflit porte vraiment sur une place que j'avais sélectionnée, le serveur gagne et la place disparaît, mais elle disparaît explicitement, avec une explication, jamais en silence.
+
+Et l'accessibilité, que je soulèverais ici sans qu'on me le demande, parce que c'est la chose la plus difficile à rendre accessible dans toute l'application. Une grille visuelle de cases cliquables ne donne rien à un lecteur d'écran. Il faut une sélection au clavier, avec des libellés qui portent à la fois l'information spatiale et l'état, quelque chose comme vélo douze, disponible, premier rang. Et il faut annoncer les changements sans noyer l'utilisateur sous les notifications vocales permanentes.
+
+[medium pause] Le sélecteur de place est la chose la plus difficile à rendre accessible dans cette application. Une grille cliquable ne donne rien à un lecteur d'écran. Il faut une sélection au clavier avec des libellés qui portent la position et le statut, et des annonces en direct qui informent sans être incessantes.
+
+[long pause] Passons au durcissement, en commençant par le hors ligne.
+
+Je le formulerais en quatre niveaux de coût croissant. Le niveau zéro, c'est rien : un écran d'erreur hors ligne. Coût nul, mauvaise expérience. Le niveau un, c'est la lecture en cache : le membre voit son planning et surtout sa réservation à montrer à l'accueil. Coût faible, valeur très élevée. Le niveau deux, c'est l'écriture en file : une réservation optimiste rejouée à la reconnexion. Coût élevé, valeur discutable. Le niveau trois, c'est le hors ligne complet, dont le coût est très élevé.
+
+Le critère, c'est l'usage réel. Le réseau est souvent mauvais dans les studios, fréquemment parce qu'ils sont en sous-sol. Et le besoin dominant dans ce contexte est de consulter et de prouver sa réservation, pas d'en créer une.
+
+Donc : le niveau un systématiquement, le niveau deux seulement si les données d'usage le justifient.

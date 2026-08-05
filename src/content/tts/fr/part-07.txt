@@ -1,0 +1,21 @@
+[medium pause] Je n'introduirais donc pas le verrou puis confirmation par défaut. Ça amène une durée de vie, une tâche d'expiration, un état en attente, un compte à rebours dans l'interface, et la libération du verrou en cas d'abandon. C'est beaucoup de machinerie, et une réservation par crédits n'en a aucun besoin. Je l'ajouterais exactement au moment où un paiement par carte s'intercale entre l'intention et la confirmation.
+
+L'entrée en liste d'attente soulève une question produit que je préfère vous poser plutôt que de trancher seul. Quand une place se libère, est-ce que la première personne de la liste est réservée automatiquement, ou reçoit-elle une invitation à accepter dans une fenêtre de temps ?
+
+L'automatique maximise le remplissage, ce qui est l'intérêt du studio. L'opt-in protège le membre d'être engagé sans l'avoir voulu, débité d'un crédit, et éventuellement pénalisé pour absence parce qu'il n'a jamais lu la notification. Et la bonne réponse dépend du délai : vingt-quatre heures avant le cours, l'opt-in est raisonnable. Vingt minutes avant, une fenêtre d'acceptation laisse simplement la place vide.
+
+[medium pause] C'est une décision produit plus qu'une décision d'ingénierie. Je partirais probablement sur un hybride en fonction du temps restant avant le cours, mais je voudrais savoir si les studios pénalisent les absences, parce que réserver automatiquement quelqu'un qui se fait ensuite pénaliser pour ne pas être venu, c'est le pire des deux mondes.
+
+Et côté facturation, l'abonnement ou le pack porte le type, les crédits restants, la validité, et les restrictions sur les disciplines ou les studios autorisés. C'est ce qui pilote l'éligibilité, et l'éligibilité est un point majeur pour l'interface, parce que pouvoir réserver ne dépend pas seulement des places restantes, mais aussi du pack. J'y reviens quand je parlerai des états d'interface, parce que c'est le point que la plupart des gens manquent.
+
+[long pause] Venons-en à la disponibilité. C'est un point de modélisation où il est facile de se tromper, et où avoir la bonne réponse se voit beaucoup.
+
+[medium pause] La disponibilité n'est pas un attribut stocké. C'est une projection. La disponibilité, c'est la capacité, qui est statique, moins les occupations, qui sont dynamiques.
+
+Une place n'a pas de champ est disponible. Elle ne peut pas en avoir : le vélo douze est pris à dix-huit heures et libre à dix-neuf heures. La disponibilité est une propriété du couple place et session, pas de la place. Si vous la stockez sur la place, votre modèle casse à la deuxième session de la journée.
+
+La conséquence pour le contrat, c'est que le client consomme une liste de disponibilités par place, identifiant et statut, par session, tenue séparée du plan de salle.
+
+Il y a deux régimes. La capacité anonyme, où il n'y a pas de places individuelles, juste un compteur, donc la session porte une capacité et un nombre de réservations. Et les places attribuées, où il y a de vraies entités place et où la disponibilité se calcule place par place.
+
+Le point à faire, c'est que le second contient le premier. Si vous avez les places, vous pouvez en dériver le compteur. Mais vous ne faites pas payer la complexité d'un plan de salle aux cours qui n'en ont pas besoin. Le plan est optionnel, et l'interface bascule entre un parcours simple et le sélecteur de place selon qu'il existe ou non.

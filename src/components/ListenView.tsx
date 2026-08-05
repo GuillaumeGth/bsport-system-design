@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useI18n } from '../i18n/useI18n'
 import { useLocalStorage } from '../hooks/useLocalStorage'
-import { AUDIO_DOWNLOAD, AUDIO_SRC, CHAPTERS, chapterAt, formatTime } from '../lib/audio'
+import { CHAPTERS, audioDownload, audioSrc, chapterAt, formatTime } from '../lib/audio'
 import './ListenView.css'
 
 const SPEEDS = [0.9, 1, 1.15, 1.3, 1.5]
@@ -16,14 +16,22 @@ export function ListenView({ onSelectSection }: { onSelectSection: (sectionId: s
   const [failed, setFailed] = useState(false)
   const [speed, setSpeed] = useLocalStorage<number>('bsport.audioSpeed', 1)
   // La position survit au rechargement : on écoute ça en plusieurs fois.
-  const [saved, setSaved] = useLocalStorage<number>('bsport.audioPosition', 0)
+  const [saved, setSaved] = useLocalStorage<number>(`bsport.audioPosition.${locale}`, 0)
+
+  const chapters = CHAPTERS[locale]
 
   useEffect(() => {
     const audio = audioRef.current
     if (audio) audio.playbackRate = speed
   }, [speed])
 
-  const current = chapterAt(position)
+  useEffect(() => {
+    setPosition(0)
+    setDuration(0)
+    setFailed(false)
+  }, [locale])
+
+  const current = chapterAt(chapters, position)
 
   const seek = (seconds: number) => {
     const audio = audioRef.current
@@ -49,8 +57,12 @@ export function ListenView({ onSelectSection }: { onSelectSection: (sectionId: s
 
       <audio
         ref={audioRef}
-        src={AUDIO_SRC}
-        preload="metadata"
+        key={locale}
+        src={audioSrc(locale)}
+        {/* Le fichier fait 42 Mo : « metadata » lancerait un gros
+            téléchargement à l'ouverture de la page, même pour quelqu'un qui
+            ne lance jamais la lecture. La durée arrive au premier play. */}
+        preload="none"
         onLoadedMetadata={(event) => {
           const audio = event.currentTarget
           setDuration(audio.duration)
@@ -73,7 +85,7 @@ export function ListenView({ onSelectSection }: { onSelectSection: (sectionId: s
         <div className="listen__player">
           <p className="listen__now">
             <span className="u-kicker">{t('listen.playing')}</span>
-            <strong>{current.title[locale]}</strong>
+            <strong>{current.title}</strong>
           </p>
 
           <input
@@ -149,14 +161,14 @@ export function ListenView({ onSelectSection }: { onSelectSection: (sectionId: s
 
       <h2 className="listen__chaptersTitle">{t('listen.chapters')}</h2>
       <ol className="listen__chapters">
-        {CHAPTERS.map((chapter) => {
+        {chapters.map((chapter) => {
           const isCurrent = !failed && chapter.index === current.index
           return (
             <li key={chapter.index}>
               <div className={`chapter${isCurrent ? ' is-current' : ''}`}>
                 <button type="button" className="chapter__jump" onClick={() => seek(chapter.start)}>
                   <span className="chapter__time u-mono">{formatTime(chapter.start)}</span>
-                  <span className="chapter__title">{chapter.title[locale]}</span>
+                  <span className="chapter__title">{chapter.title}</span>
                 </button>
                 <span className="chapter__sections">
                   {chapter.sections.map((sectionId) => (
@@ -178,7 +190,7 @@ export function ListenView({ onSelectSection }: { onSelectSection: (sectionId: s
       </ol>
 
       <p className="listen__download">
-        <a href={AUDIO_DOWNLOAD}>{t('listen.download')}</a>
+        <a href={audioDownload(locale)}>{t('listen.download')}</a>
       </p>
     </section>
   )

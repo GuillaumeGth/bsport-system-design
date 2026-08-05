@@ -1,0 +1,29 @@
+Pessimiste, ça veut dire un indicateur de chargement, puis la mise à jour à la réponse. Ça ne ment jamais à l'écran, le code est simple, il n'y a pas de retour arrière. Mais chaque action semble lente. Sur un réseau à trois cents millisecondes de latence, l'application paraît poussive.
+
+Optimiste, ça veut dire que l'interface change immédiatement, avec un retour arrière en cas d'échec. Ça paraît instantané, et c'est directement une amélioration de la latence d'interaction. Mais c'est plus complexe, et surtout ça risque de mentir.
+
+Le critère, c'est la probabilité de succès et le coût d'un mensonge. Et ce qui est intéressant, c'est que ma réponse est différenciée par action, et même par contexte.
+
+Annuler : optimiste, ça réussit presque toujours. Rejoindre une liste d'attente : optimiste, il n'y a pas de rareté. Réserver un cours à moitié vide : optimiste, un conflit est improbable. Réserver la dernière place : prudent. Payer : pessimiste, on n'affiche jamais une confirmation de paiement qui pourrait être fausse.
+
+Le raffinement que j'ajouterais, c'est de moduler l'optimisme selon le nombre de places restantes. Sur les dernières places, un honnête confirmation en cours vaut mieux qu'un joyeux c'est bon, suivi d'un en fait non.
+
+[medium pause] Et le point que je ne veux pas rater : l'optimisme ne supprime pas la gestion de l'échec, il rend l'échec plus visible, parce que l'utilisateur a déjà vu le succès. Donc le retour arrière doit s'expliquer. Cette place vient d'être prise, voici trois alternatives. Jamais un retour silencieux.
+
+Ensuite il y a l'invalidation, qui est à mon avis le vrai sujet quand les gens disent cache.
+
+Après une mutation réussie, comment se resynchroniser ? On peut invalider et refetcher, ce qui donne la vérité du serveur et évite de se tromper dans la transformation locale, mais c'est un aller-retour de plus. Ou on peut écrire la réponse dans le cache, ce qui est instantané et ne coûte aucune requête, mais il faut transformer correctement, et le reste de l'écran peut rester périmé.
+
+Le critère, c'est de savoir si la mutation affecte des données au-delà de ce qu'elle renvoie. Ici, oui. Une réservation change la session, mais aussi mes crédits, mes prochaines réservations, et éventuellement une liste d'attente. La réponse ne contient pas tout ça.
+
+La réponse est donc : les deux. Écriture optimiste immédiate pour la perception, la réponse écrite au succès, puis invalidation en arrière-plan des clés impactées. L'utilisateur voit instantanément, et la cohérence globale se rétablit en silence.
+
+Le piège, c'est de garder l'instantané d'avant la mutation, sinon le retour arrière ne peut pas être propre. Et si deux mutations optimistes sont en vol sur la même donnée, un retour arrière naïf de la première écrase la seconde. C'est pour ça que j'utiliserais les mécanismes fournis par la librairie plutôt que de bricoler avec un état local.
+
+[long pause] Parlons correctement d'idempotence, parce que c'est la pièce qui m'importe le plus.
+
+Le problème est le suivant. Le client envoie la requête. Le serveur crée la réservation. La réponse se perd, le réseau tombe, la requête expire. Le client croit à un échec et retente. Résultat : deux réservations et deux débits.
+
+Où naît la clé ? Il y a trois options, et deux sont mauvaises.
+
+Générée par le serveur : impossible. Le serveur ne peut pas savoir que deux requêtes distinctes représentent la même intention utilisateur.

@@ -1,0 +1,25 @@
+Concrètement sur cet écran : la gestion du focus dans la modale, en le piégeant puis en le restaurant sur le déclencheur. Le sélecteur de place, qui est la pièce la plus difficile, comme je l'ai dit. Des régions vivantes pour annoncer les changements de disponibilité, utilisées avec parcimonie, sinon le lecteur d'écran devient inutilisable. Les contrastes du thème du tenant. Et des cibles tactiles suffisamment grandes.
+
+[medium pause] L'argument que j'utiliserais en réunion de planification n'est pas l'argument moral. Rattraper l'accessibilité après coup coûte plusieurs fois plus cher que de la construire dès le départ, parce que ça touche la structure du DOM, la sémantique et l'ordre de focus, pas le style. C'est un argument de coût autant qu'un argument éthique. Et sur un produit de bien-être, la population concernée est surreprésentée, pas marginale.
+
+[long pause] Sur l'observabilité et le débogage, j'y penserais en quatre couches.
+
+Les erreurs : un suivi avec du contexte, le tenant, la route, la version, et les cartes de correspondance de sources, sans lesquelles les piles d'appels minifiées sont inutilisables.
+
+La performance réelle : de la mesure sur les vrais appareils des utilisateurs, segmentée par type d'appareil et de réseau, lue au soixante-quinzième et au quatre-vingt-quinzième centile plutôt qu'en moyenne. Une moyenne cache exactement les utilisateurs qui souffrent.
+
+Les traces : un identifiant de trace propagé du clic jusqu'au backend. Ça permet de suivre une réservation ratée de bout en bout, et ça ne coûte qu'un en-tête. C'est le levier de débogage qui change le plus la vie en production.
+
+Et les métriques métier, qui sont les plus importantes et les plus souvent oubliées.
+
+Le taux de complétion du tunnel de réservation est la métrique reine. Le taux d'échec par code d'erreur : une hausse des échecs de paiement est un incident, même si aucun serveur n'est tombé. Le temps de confirmation perçu, du clic au retour visuel, pas la latence de l'API. Et le taux de retour arrière optimiste, que j'aime beaucoup : si les places sont prises entre l'affichage et le clic beaucoup plus souvent qu'avant, c'est que la disponibilité temps réel est en retard. C'est une métrique qui diagnostique une couche technique par un symptôme visible de l'utilisateur.
+
+[medium pause] Le point sur lequel je conclurais l'observabilité est celui-ci. Un frontend peut être en parfaite santé, zéro erreur JavaScript, latence normale, tous les services au vert, et complètement cassé, parce qu'un bouton s'est retrouvé invisible à un point de rupture, ou qu'une condition bloque une étape du parcours. Aucune supervision technique n'attrape ça. Seule la complétion du tunnel le fait. J'alerterais donc sur le taux de complétion des réservations, pas seulement sur le taux d'erreur.
+
+[long pause] Sur la preuve de concept face à la production, puisque c'est un arbitrage que vous évoquez.
+
+Ce que je différerais pour une preuve de concept : le hors ligne complet, le canal temps réel, le rendu serveur et le référencement, la virtualisation, une internationalisation exhaustive, un système de design complet.
+
+Ce que je ne différerais jamais : la protection contre la double réservation par l'idempotence, des états d'erreur clairs et typés, l'affichage d'horaires justes, ne jamais montrer une fausse confirmation, la sécurité de base, et l'accessibilité au clavier sur les parcours critiques.
+
+[medium pause] Le critère derrière cette frontière est le suivant. Ce qui est différable, c'est ce que je peux ajouter plus tard sans rien casser ni tromper personne. Ce qui ne l'est pas, c'est tout ce dont l'absence produit un mensonge à l'utilisateur, ou fait perdre de l'argent au studio.

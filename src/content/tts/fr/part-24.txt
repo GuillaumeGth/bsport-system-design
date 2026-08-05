@@ -1,0 +1,21 @@
+Et pour relier les défauts techniques aux conséquences métier : un tunnel lent ou confus, c'est de l'abandon, donc une fréquentation en baisse. Une double réservation, c'est un litige, un remboursement, et de la confiance perdue. Une place fantôme, c'est un membre debout dans la salle sans machine. Un mauvais fuseau, c'est un cours raté. Un état non éligible mal géré, c'est une vente manquée. Et pas de hors ligne, c'est un membre bloqué à l'accueil sans réseau.
+
+[medium pause] La posture que j'énoncerais là-dessus : une preuve de concept réduit le périmètre, elle ne réduit pas la correction. Réduire ce qu'on supporte est légitime. Réduire le fait que ce soit juste ne l'est pas.
+
+[long pause] Si vous me poussez côté backend, voilà à peu près ce que je dirais, et où je trace la limite.
+
+Sur la double réservation, la garantie ne peut pas venir du client. Le serveur sérialise les écritures concurrentes, avec une opération atomique du type décrémente s'il reste de la place. Ce que j'en retiens comme ingénieur frontend, c'est que le serveur est la source de vérité, et que mon travail est de gérer élégamment son refus.
+
+Sur le verrou puis confirmation, si le paiement prend du temps, le serveur pose un verrou temporaire avec expiration, puis confirme. D'où l'état en attente et le compte à rebours dans mon interface.
+
+Sur la cohérence entre le paiement et la réservation, entre deux services on utilise une saga, c'est-à-dire des étapes compensables : si le paiement échoue après la réservation, une action compensatoire annule ou rembourse. Et la conséquence frontend est directe : la confirmation peut être asynchrone, donc il me faut un état en cours de confirmation et un moyen d'apprendre le résultat, que ce soit par le canal temps réel, par interrogation régulière, ou par notification.
+
+Sur le cache serveur, mes chiffres de disponibilité peuvent être servis depuis un cache. Donc une valeur légèrement périmée est normale, ce qui reboucle exactement sur le principe que la disponibilité est une indication et non une garantie.
+
+[medium pause] Mais voici comment je trace la frontière. La garantie de correction doit vivre côté serveur. Je ne peux pas empêcher la double réservation depuis le client, et je n'essaierais pas. Mon travail, c'est de rendre le chemin optimiste instantané et le chemin de refus élégant. Ce qui m'importe côté API, c'est que le contrat me donne des raisons typées, pour que je puisse transformer chaque échec en la bonne expérience.
+
+Et si vous me poussez sur quelque chose que je ne sais vraiment pas, je préfère le dire. Je n'ai pas construit cette pièce précise. Voilà comment je raisonnerais dessus, et voilà qui je voudrais dans la pièce pour valider.
+
+Sur le temps, si je sens qu'on est court : il me reste une quinzaine de minutes. Je préfère approfondir une chose de plus que survoler trois. Vous préférez la réconciliation temps réel, ou la façon dont je superviserais ça en production ?
+
+[long pause] Et pour résumer où nous en sommes arrivés.

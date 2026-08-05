@@ -1,0 +1,19 @@
+Côté client, à partir du pack et de la session, c'est réactif et ça fonctionne hors ligne. Mais ça duplique une règle métier sur trois clients, le web, le mobile et le back-office, et ces trois copies vont diverger. Le jour où un studio ajoute une restriction horaire à un pack, vous affichez réservable pour un cours que l'API va refuser.
+
+Côté serveur, renvoyé comme un champ avec une raison typée, c'est une seule implémentation, et elle peut évoluer sans redéployer les clients.
+
+Le critère, c'est : est-ce une règle métier ou une règle de présentation ? L'éligibilité est une règle métier. Elle change, elle a des exceptions, et elle vaut de l'argent. Donc le serveur décide, le client présente. Le serveur renvoie si je peux réserver, et la raison typée du refus, et le client traduit cette raison en interface.
+
+Il y a un cas subtil que je soulèverais moi-même : que fait-on hors ligne ? On ne peut pas demander au serveur. Deux options honnêtes. Afficher la dernière éligibilité connue, explicitement marquée comme non confirmée. Ou embarquer une copie approximative des règles en acceptant qu'elle puisse se tromper, auquel cas l'interface doit rester prudente plutôt qu'affirmative. Ma préférence : hors ligne, j'affiche la dernière éligibilité connue, explicitement marquée comme à confirmer, plutôt que de recalculer les règles côté client et de mentir avec assurance.
+
+[short pause] Troisièmement, les erreurs typées, parce que les erreurs pilotent l'interface. Un code quatre cents avec un message, ou un code d'erreur lisible par la machine ? Le critère, c'est de savoir si chaque cause appelle une interface différente. Ici, massivement oui.
+
+Session complète veut dire revenir en arrière et proposer la liste d'attente. C'est de la rétention. Place déjà prise veut dire retourner au sélecteur de place. C'est de l'expérience. Déjà réservé n'est pas une erreur du tout, et j'y reviens. Plus de crédits veut dire proposer l'achat d'un pack. C'est du revenu. Non couvert par l'abonnement veut dire proposer une montée en gamme. Du revenu également. Fenêtre de réservation fermée veut dire annoncer que ça ouvre le trois août à neuf heures, et proposer un rappel. Annulation trop tardive veut dire expliquer la politique, ce qui évite un ticket de support. Et échec de paiement veut dire proposer un autre moyen de paiement. Encore du revenu.
+
+Deux remarques là-dessus. Le message affiché appartient au client. Le code est pour la machine. Le texte doit être traduit, adapté au ton de la marque, et accompagné de la bonne action. Afficher le message brut du serveur est un raccourci qui produit des interfaces incohérentes et parfois des fuites d'information.
+
+Et déjà réservé n'est pas une erreur. C'est le résultat normal d'une nouvelle tentative réussie ou d'un double appui. Le traiter comme une erreur affiche une alerte anxiogène dans une situation où tout va bien.
+
+[medium pause] En résumé : trois de ces codes sont des opportunités de vente plutôt que des échecs. Et déjà réservé n'est pas une erreur du tout, c'est en général une nouvelle tentative qui a fonctionné. Afficher une erreur à ce moment-là effraie l'utilisateur pour rien.
+
+[short pause] Quatrièmement, le temps dans le contrat. Les instants transitent en temps universel, le fuseau du studio accompagne la donnée, et le rendu se fait dans ce fuseau. Le fuseau de l'appareil ne sert que pour les affichages relatifs, comme dans deux heures, ou pour avertir un membre en voyage. J'y reviendrai, mais c'est un champ du contrat, donc je le pose maintenant.

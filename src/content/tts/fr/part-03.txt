@@ -1,0 +1,35 @@
+La première version, c'est une application cliente qui parle à une API REST. Elle récupère la liste des sessions pour un studio et une plage de dates, les affiche, et quand l'utilisateur appuie sur Réserver, elle envoie une requête et met à jour l'écran avec la réponse. Le chargement, l'erreur et l'état vide sont gérés. C'est tout. Pas de canal temps réel, pas de hors ligne, pas de mise à jour optimiste, pas de machine à états.
+
+[medium pause] Ça fonctionne, et honnêtement, pour un pilote avec un seul studio, ça pourrait suffire. Mais il y a quatre choses qui vont casser.
+
+Premièrement, la disponibilité devient périmée à l'instant où elle est affichée. Quelqu'un d'autre réserve pendant que vous regardez l'écran.
+
+Deuxièmement, chaque clic attend un aller-retour réseau, ce qui sur une mauvaise connexion donne l'impression que l'application est cassée.
+
+Troisièmement, si le réseau tombe en pleine requête, on ne sait pas si la réservation a eu lieu, et une nouvelle tentative pourrait produire une double réservation.
+
+Quatrièmement, rien ne nous dit quand ça échoue en production.
+
+Ces quatre points sont ce que je veux creuser. Le temps réel, la latence perçue, l'idempotence, et l'observabilité.
+
+[long pause] Construisons maintenant correctement. Je vais dessiner des couches plutôt qu'un nuage de boîtes reliées par des flèches, parce que les couches rendent les dépendances explicites.
+
+Tout en haut, les composants d'interface. Le rendu, l'interaction, l'accessibilité.
+
+En dessous, l'état d'interface local. Les filtres, l'ouverture d'une modale, la place survolée, l'étape courante du parcours, la position de défilement.
+
+En dessous, l'état serveur et le cache. Les sessions, la disponibilité, mon profil, mes réservations.
+
+En dessous, le transport. Le client HTTP, le canal temps réel, la file d'actions hors ligne.
+
+Et sous tout ça, les services transverses. L'authentification, l'internationalisation, le thème du tenant, les feature flags, la télémétrie.
+
+Le principe, c'est que chaque couche a une responsabilité unique, et que les couches basses ignorent tout des couches hautes. Le client HTTP ne sait pas qu'un composant carte de cours existe. Le cache ne sait pas comment on affiche une erreur.
+
+Je veux relier ça à la clean architecture, puisque vous la mentionnez. La clean architecture n'est pas une idée réservée au backend. Sa proposition centrale, le domaine au centre, indépendant de l'infrastructure, avec des dépendances qui pointent vers l'intérieur, s'applique parfaitement côté client.
+
+[medium pause] La logique de domaine, ce qu'est une réservation, quels états elle peut prendre, ce qui rend une session réservable, ne devrait pas savoir si les données arrivent par REST, par GraphQL ou par une WebSocket. Si je tiens cette séparation, je peux changer de transport, tester le domaine sans réseau, et partager cette couche avec l'application mobile. C'est l'inversion de dépendance appliquée au client.
+
+Et ça a une conséquence pratique qui mérite d'être dite. C'est ce qui rend le partage de code entre web et mobile possible et sensé. La couche domaine, les règles, la machine à états, les types, c'est du TypeScript pur et ça se partage intégralement. La couche présentation ne se partage pas bien, et ne devrait pas. L'arbitrage que je défendrais est donc : partager ce qui est invariant, spécialiser ce qui est contextuel.
+
+Maintenant, laissez-moi raconter le trajet d'une réservation à travers ces couches, parce que le flux de données est plus parlant ici qu'un schéma de boîtes.
