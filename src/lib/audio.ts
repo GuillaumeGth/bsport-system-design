@@ -11,7 +11,7 @@ export function audioSrc(locale: Locale): string {
 }
 
 export function audioDownload(locale: Locale): string {
-  return `https://github.com/GuillaumeGth/bsport-system-design/releases/download/audio-v1/recitation-${locale}.m4a`
+  return `https://github.com/GuillaumeGth/bsport-system-design/releases/download/audio-v1/recitation.${locale}.m4a`
 }
 
 export function formatTime(seconds: number): string {
