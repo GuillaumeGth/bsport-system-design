@@ -72,13 +72,15 @@ TITLES: dict[str, list[tuple[str, list[str]]]] = {
 }
 
 
-def offsets(lang: str) -> list[float]:
+def offsets(lang: str) -> list[tuple[float, float]]:
+    """Offset cumulé et durée de chaque partie, mesurés sur les WAV."""
     parts = sorted((AUDIO / lang).glob("part-*.wav"))
     result, cursor = [], 0.0
     for part in parts:
         with wave.open(str(part)) as handle:
-            result.append(round(cursor, 1))
-            cursor += handle.getnframes() / handle.getframerate() + GAP_SECONDS
+            seconds = handle.getnframes() / handle.getframerate()
+            result.append((round(cursor, 1), round(seconds, 1)))
+            cursor += seconds + GAP_SECONDS
     return result
 
 
@@ -91,7 +93,10 @@ def main() -> None:
                 f"{lang} : {len(starts)} parties audio pour {len(titles)} titres — "
                 "générez l'audio manquant ou ajustez TITLES."
             )
-        data[lang] = [(start, title, sections) for start, (title, sections) in zip(starts, titles)]
+        data[lang] = [
+            (start, seconds, title, sections)
+            for (start, seconds), (title, sections) in zip(starts, titles)
+        ]
 
     lines = [
         "// Généré par scripts/build-chapters.py — ne pas éditer à la main.",
@@ -101,8 +106,10 @@ def main() -> None:
         "",
         "export interface Chapter {",
         "  index: number",
-        "  /** Seconde de début dans le fichier complet. */",
+        "  /** Seconde de début sur la frise complète. */",
         "  start: number",
+        "  /** Durée du chapitre, en secondes. */",
+        "  duration: number",
         "  title: string",
         "  /** Sections du document couvertes, pour renvoyer vers le texte. */",
         "  sections: string[]",
@@ -112,18 +119,19 @@ def main() -> None:
     ]
     for lang, rows in data.items():
         lines.append(f"  {lang}: [")
-        for index, (start, title, sections) in enumerate(rows, start=1):
+        for index, (start, seconds, title, sections) in enumerate(rows, start=1):
             joined = ", ".join(f"'{section}'" for section in sections)
             escaped = title.replace("\\", "\\\\").replace("'", "\\'")
             lines.append(
-                f"    {{ index: {index}, start: {start}, title: '{escaped}', sections: [{joined}] }},"
+                f"    {{ index: {index}, start: {start}, duration: {seconds}, "
+                f"title: '{escaped}', sections: [{joined}] }},"
             )
         lines.append("  ],")
     lines += ["}", ""]
 
     TARGET.write_text("\n".join(lines))
     for lang, rows in data.items():
-        print(f"{lang} : {len(rows)} chapitres, dernier à {rows[-1][0] / 60:.0f} min")
+        print(f"{lang} : {len(rows)} chapitres, {(rows[-1][0] + rows[-1][1]) / 60:.0f} min au total")
 
 
 if __name__ == "__main__":

@@ -1,7 +1,14 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useI18n } from '../i18n/useI18n'
 import { useLocalStorage } from '../hooks/useLocalStorage'
-import { CHAPTERS, audioDownload, audioSrc, chapterAt, formatTime } from '../lib/audio'
+import {
+  CHAPTERS,
+  audioDownload,
+  chapterAt,
+  chapterSrc,
+  formatTime,
+  totalDuration,
+} from '../lib/audio'
 import './ListenView.css'
 
 const SPEEDS = [0.9, 1, 1.15, 1.3, 1.5]
@@ -10,35 +17,53 @@ const SKIP_SECONDS = 15
 export function ListenView({ onSelectSection }: { onSelectSection: (sectionId: string) => void }) {
   const { t, locale } = useI18n()
   const audioRef = useRef<HTMLAudioElement>(null)
+  const chapters = CHAPTERS[locale]
+  const total = totalDuration(chapters)
+
+  const [index, setIndex] = useState(0)
+  const [offset, setOffset] = useState(0)
   const [playing, setPlaying] = useState(false)
-  const [position, setPosition] = useState(0)
-  const [duration, setDuration] = useState(0)
   const [failed, setFailed] = useState(false)
   const [speed, setSpeed] = useLocalStorage<number>('bsport.audioSpeed', 1)
   // La position survit au rechargement : on écoute ça en plusieurs fois.
   const [saved, setSaved] = useLocalStorage<number>(`bsport.audioPosition.${locale}`, 0)
 
-  const chapters = CHAPTERS[locale]
+  /** Position demandée dans le chapitre, appliquée dès qu'il est chargé. */
+  const pending = useRef<{ at: number; play: boolean } | null>(null)
 
-  useEffect(() => {
-    const audio = audioRef.current
-    if (audio) audio.playbackRate = speed
-  }, [speed])
+  const current = chapters[index] ?? chapters[0]
+  const position = current.start + offset
 
+  // Changer de langue change de découpage : on repart du début.
   useEffect(() => {
-    setPosition(0)
-    setDuration(0)
+    setIndex(0)
+    setOffset(0)
+    setPlaying(false)
     setFailed(false)
+    pending.current = null
   }, [locale])
 
-  const current = chapterAt(chapters, position)
+  /** Se placer sur la frise complète, en changeant de chapitre si besoin. */
+  const seek = useCallback(
+    (seconds: number, play?: boolean) => {
+      const target = Math.max(0, Math.min(seconds, total - 1))
+      const chapter = chapterAt(chapters, target)
+      const within = Math.max(0, target - chapter.start)
+      const audio = audioRef.current
+      const shouldPlay = play ?? playing
 
-  const seek = (seconds: number) => {
-    const audio = audioRef.current
-    if (!audio) return
-    audio.currentTime = Math.max(0, Math.min(seconds, audio.duration || seconds))
-    setPosition(audio.currentTime)
-  }
+      if (chapter.index - 1 === index && audio) {
+        audio.currentTime = within
+        setOffset(within)
+        if (shouldPlay) void audio.play()
+        return
+      }
+      pending.current = { at: within, play: shouldPlay }
+      setIndex(chapter.index - 1)
+      setOffset(within)
+    },
+    [chapters, index, playing, total],
+  )
 
   const toggle = () => {
     const audio = audioRef.current
@@ -55,24 +80,38 @@ export function ListenView({ onSelectSection }: { onSelectSection: (sectionId: s
         <p className="listen__sub">{t('listen.sub')}</p>
       </header>
 
-      {/* `preload="none"` : le fichier fait 42 Mo, et « metadata » lancerait ce
-          téléchargement à l'ouverture de la page, même pour quelqu'un qui ne
-          lance jamais la lecture. La durée arrive au premier play. */}
       <audio
         ref={audioRef}
-        key={locale}
-        src={audioSrc(locale)}
-        preload="none"
+        key={`${locale}-${index}`}
+        src={chapterSrc(locale, current.index)}
+        preload="auto"
         onLoadedMetadata={(event) => {
           const audio = event.currentTarget
-          setDuration(audio.duration)
           audio.playbackRate = speed
-          if (saved > 0 && saved < audio.duration) audio.currentTime = saved
+          const request = pending.current
+          pending.current = null
+          if (request) {
+            audio.currentTime = request.at
+            if (request.play) void audio.play()
+          } else if (saved > current.start && saved < current.start + current.duration) {
+            audio.currentTime = saved - current.start
+          }
         }}
         onTimeUpdate={(event) => {
-          const time = event.currentTarget.currentTime
-          setPosition(time)
-          if (Math.abs(time - saved) > 5) setSaved(time)
+          const within = event.currentTarget.currentTime
+          setOffset(within)
+          const absolute = current.start + within
+          if (Math.abs(absolute - saved) > 5) setSaved(absolute)
+        }}
+        onEnded={() => {
+          // Chapitre suivant, sans interrompre l'écoute.
+          if (current.index < chapters.length) {
+            pending.current = { at: 0, play: true }
+            setIndex(current.index)
+            setOffset(0)
+          } else {
+            setPlaying(false)
+          }
         }}
         onPlay={() => setPlaying(true)}
         onPause={() => setPlaying(false)}
@@ -84,7 +123,9 @@ export function ListenView({ onSelectSection }: { onSelectSection: (sectionId: s
       ) : (
         <div className="listen__player">
           <p className="listen__now">
-            <span className="u-kicker">{t('listen.playing')}</span>
+            <span className="u-kicker">
+              {t('listen.playing')} · {current.index}/{chapters.length}
+            </span>
             <strong>{current.title}</strong>
           </p>
 
@@ -92,7 +133,7 @@ export function ListenView({ onSelectSection }: { onSelectSection: (sectionId: s
             className="listen__seek"
             type="range"
             min={0}
-            max={duration || 1}
+            max={total}
             step={1}
             value={position}
             aria-label={t('listen.seek')}
@@ -101,9 +142,7 @@ export function ListenView({ onSelectSection }: { onSelectSection: (sectionId: s
 
           <div className="listen__times u-mono">
             <span>{formatTime(position)}</span>
-            {/* Les métadonnées d'un fichier de 42 Mo mettent quelques secondes
-                à arriver : sans ça, l'écran affiche 0:00 et paraît cassé. */}
-            <span>{duration > 0 ? formatTime(duration) : t('listen.loading')}</span>
+            <span>{formatTime(total)}</span>
           </div>
 
           <div className="listen__controls">
@@ -149,7 +188,10 @@ export function ListenView({ onSelectSection }: { onSelectSection: (sectionId: s
                   type="button"
                   className={`listen__speedBtn u-mono${value === speed ? ' is-on' : ''}`}
                   aria-pressed={value === speed}
-                  onClick={() => setSpeed(value)}
+                  onClick={() => {
+                    setSpeed(value)
+                    if (audioRef.current) audioRef.current.playbackRate = value
+                  }}
                 >
                   {value}×
                 </button>
@@ -166,7 +208,11 @@ export function ListenView({ onSelectSection }: { onSelectSection: (sectionId: s
           return (
             <li key={chapter.index}>
               <div className={`chapter${isCurrent ? ' is-current' : ''}`}>
-                <button type="button" className="chapter__jump" onClick={() => seek(chapter.start)}>
+                <button
+                  type="button"
+                  className="chapter__jump"
+                  onClick={() => seek(chapter.start, true)}
+                >
                   <span className="chapter__time u-mono">{formatTime(chapter.start)}</span>
                   <span className="chapter__title">{chapter.title}</span>
                 </button>
