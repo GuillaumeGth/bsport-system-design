@@ -55,13 +55,13 @@ export function ListenView({ onSelectSection }: { onSelectSection: (sectionId: s
         <p className="listen__sub">{t('listen.sub')}</p>
       </header>
 
+      {/* `preload="none"` : le fichier fait 42 Mo, et « metadata » lancerait ce
+          téléchargement à l'ouverture de la page, même pour quelqu'un qui ne
+          lance jamais la lecture. La durée arrive au premier play. */}
       <audio
         ref={audioRef}
         key={locale}
         src={audioSrc(locale)}
-        {/* Le fichier fait 42 Mo : « metadata » lancerait un gros
-            téléchargement à l'ouverture de la page, même pour quelqu'un qui
-            ne lance jamais la lecture. La durée arrive au premier play. */}
         preload="none"
         onLoadedMetadata={(event) => {
           const audio = event.currentTarget
