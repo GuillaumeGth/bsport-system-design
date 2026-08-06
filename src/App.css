@@ -44,3 +44,21 @@
     padding-top: var(--s-6);
   }
 }
+
+/* À l'impression, il ne reste que le contenu : c'est une feuille de papier. */
+@media print {
+  .topbar,
+  .rail,
+  .nav,
+  .app__skip {
+    display: none;
+  }
+
+  .app__main {
+    padding: 0;
+  }
+
+  .app__main > * {
+    max-width: none;
+  }
+}

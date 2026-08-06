@@ -1,0 +1,169 @@
+/* L'antisèche n'est pas une lecture : c'est une feuille qu'on balaye du regard
+   pendant qu'on parle. Un bloc = une carte, la minute en repère à gauche. */
+.cheat__head {
+  display: grid;
+  gap: var(--s-4);
+  padding-bottom: var(--s-5);
+  margin-bottom: var(--s-6);
+  border-bottom: 1px solid var(--rule);
+}
+
+.cheat__title {
+  font-size: var(--step-4);
+  max-width: 24ch;
+}
+
+.cheat__note {
+  color: var(--ink-soft);
+  font-family: var(--font-body);
+  font-size: var(--step-1);
+  max-width: var(--measure);
+}
+
+.cheat__jump {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+
+.cheat__jumpItem {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.45em;
+  padding: 0.2rem 0.6rem;
+  border-radius: var(--r-md);
+  background: var(--surface-sunken);
+  color: var(--ink-soft);
+  font-size: var(--step--1);
+  transition: background 140ms var(--ease), color 140ms var(--ease);
+}
+
+.cheat__jumpItem:hover {
+  background: var(--accent-wash);
+  color: var(--accent);
+}
+
+.cheat__jumpItem .u-mono {
+  font-size: 0.625rem;
+  color: var(--ink-faint);
+}
+
+.cheat__print {
+  margin-left: auto;
+  padding: 0.2rem 0.6rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--r-md);
+  color: var(--ink-faint);
+  font-size: var(--step--1);
+  transition: border-color 140ms var(--ease), color 140ms var(--ease);
+}
+
+.cheat__print:hover {
+  border-color: var(--ink-faint);
+  color: var(--ink);
+}
+
+.cheat__block {
+  padding: var(--s-5);
+  margin-bottom: var(--s-5);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  scroll-margin-top: 5rem;
+}
+
+.cheat__blockHead {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-3);
+  padding-bottom: var(--s-4);
+  margin-bottom: var(--s-4);
+  border-bottom: 1px solid var(--rule-soft);
+}
+
+/* La minute d'abord : c'est par elle qu'on retrouve son bloc en plein entretien. */
+.cheat__minutes {
+  flex: none;
+  min-width: 4.5ch;
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.cheat__blockTitle {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--step-2);
+}
+
+.cheat__toSection {
+  flex: none;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.4em;
+  color: var(--ink-faint);
+  font-size: var(--step--1);
+  white-space: nowrap;
+  transition: color 140ms var(--ease);
+}
+
+.cheat__toSection:hover {
+  color: var(--accent);
+}
+
+.cheat__toSection .u-mono {
+  font-size: 0.625rem;
+}
+
+/* Le corps est plus serré que dans le déroulé : on scanne, on ne lit pas. */
+.cheat__block .md {
+  font-size: var(--step-0);
+  line-height: 1.6;
+  max-width: none;
+}
+
+.cheat__block .md > * + * {
+  margin-top: var(--s-3);
+}
+
+.cheat__block .md blockquote {
+  font-size: var(--step-0);
+  padding: var(--s-5) var(--s-4) var(--s-4);
+  margin: var(--s-4) 0;
+}
+
+.cheat__block .md-scroll,
+.cheat__block .md pre {
+  margin: var(--s-4) 0;
+}
+
+.cheat__outro {
+  margin-top: var(--s-6);
+  padding-top: var(--s-5);
+  border-top: 1px solid var(--rule);
+  font-family: var(--font-body);
+  font-size: var(--step-2);
+  color: var(--ink);
+}
+
+@media (max-width: 640px) {
+  .cheat__blockHead {
+    flex-wrap: wrap;
+  }
+
+  .cheat__blockTitle {
+    flex-basis: 100%;
+  }
+}
+
+/* Imprimée, la feuille doit tenir sans qu'un bloc soit coupé en deux. */
+@media print {
+  .cheat__jump,
+  .cheat__toSection {
+    display: none;
+  }
+
+  .cheat__block {
+    break-inside: avoid;
+    box-shadow: none;
+  }
+}

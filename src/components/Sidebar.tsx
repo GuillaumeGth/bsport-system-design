@@ -11,6 +11,7 @@ const VIEW_LABELS: { id: View; label: StringKey }[] = [
   { id: 'lines', label: 'view.lines' },
   { id: 'essentials', label: 'view.essentials' },
   { id: 'listen', label: 'view.listen' },
+  { id: 'cheatsheet', label: 'view.cheatsheet' },
 ]
 
 interface SidebarProps {

@@ -52,7 +52,14 @@
 
 **V1 :** client → REST, fetch sessions, clic Réserver → requête → maj écran. Loading/erreur/vide. C'est tout.
 
-*"This works, and for a pilot with one studio it might be enough. But four things will break. First, availability goes stale the moment it's rendered. Second, every click waits for a round-trip, which on a bad connection feels broken. Third, if the network drops mid-request, we don't know whether the booking happened, and a retry could double-book. Fourth, nothing tells us when it's failing in production."*
+*"This works, and for a pilot with one studio it might be enough. But four things will break."*
+
+- *"First, availability goes stale the moment it's rendered."*
+- *"Second, every click waits for a round-trip, which on a bad connection feels broken."*
+- *"Third, if the network drops mid-request, we don't know whether the booking happened, and a retry could double-book."*
+- *"Fourth, nothing tells us when it's failing in production."*
+
+**Gérer ≠ savoir** — si on te challenge sur le quatrième : le V1 affiche bien l'erreur à l'utilisateur, mais rien ne la rapporte à l'équipe. Et les pannes les plus chères ne lèvent aucune erreur (bouton invisible à un breakpoint, 200 avec une liste vide).
 
 → annonce **temps réel · latence perçue · idempotence · observabilité**
 

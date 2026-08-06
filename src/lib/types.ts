@@ -70,4 +70,24 @@ export interface Doc {
   essentials: Essential[]
 }
 
-export type View = 'read' | 'lines' | 'essentials' | 'listen'
+/** Un bloc de l'antisèche (« ## 35–50 · Deep-dive 1 — la réservation »). */
+export interface CheatBlock {
+  /** Sert d'ancre de défilement dans la vue. */
+  id: string
+  title: string
+  /** Plage de minutes lue dans le titre, quand il en porte une. */
+  minutes: { start: number; end: number } | null
+  html: string
+}
+
+/** La feuille à garder sous les yeux : un document à part, plus dense que le déroulé. */
+export interface CheatSheet {
+  title: string
+  /** La note d'usage, en tête du document. */
+  note: string
+  blocks: CheatBlock[]
+  /** La phrase de clôture, isolée après le dernier filet. */
+  outro: string
+}
+
+export type View = 'read' | 'lines' | 'essentials' | 'listen' | 'cheatsheet'

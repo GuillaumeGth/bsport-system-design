@@ -17,6 +17,8 @@ export const STRINGS = {
     'view.essentials.hint': 'La checklist de clôture',
     'view.listen': 'Écouter',
     'view.listen.hint': 'Le script parlé, en anglais, chapitré',
+    'view.cheatsheet': 'Antisèche',
+    'view.cheatsheet.hint': 'La feuille à garder sous les yeux pendant l’entretien',
 
     'nav.open': 'Ouvrir le sommaire',
     'nav.label': 'Sommaire',
@@ -95,6 +97,11 @@ export const STRINGS = {
     'listen.loading': 'Chargement…',
     'listen.unsupported':
       'Ton navigateur ne parvient pas à lire ce fichier. Télécharge-le pour l’écouter hors du site.',
+
+    'cheat.kicker': 'À garder sous les yeux',
+    'cheat.jump': 'Aller à un bloc',
+    'cheat.print': 'Imprimer',
+    'cheat.read': 'Lire la section du déroulé',
   },
   en: {
     'app.title': 'bsport system design — the full walkthrough',
@@ -109,6 +116,8 @@ export const STRINGS = {
     'view.essentials.hint': 'The closing checklist',
     'view.listen': 'Listen',
     'view.listen.hint': 'The spoken script, in English, with chapters',
+    'view.cheatsheet': 'Cheat sheet',
+    'view.cheatsheet.hint': 'The sheet to keep in view during the interview',
 
     'nav.open': 'Open the contents',
     'nav.label': 'Contents',
@@ -187,6 +196,11 @@ export const STRINGS = {
     'listen.loading': 'Loading…',
     'listen.unsupported':
       'Your browser cannot play this file. Download it to listen outside the site.',
+
+    'cheat.kicker': 'Keep it in view',
+    'cheat.jump': 'Jump to a block',
+    'cheat.print': 'Print',
+    'cheat.read': 'Read that part of the walkthrough',
   },
 } as const
 

@@ -18,7 +18,8 @@ npm run dev
 - **Chrono de répétition** — bouton « Répéter » : il compte les 90 minutes et affiche la phase où tu devrais être, avec un curseur qui descend le rail.
 - **Phrases** — les 58 formulations à dire à voix haute, extraites automatiquement du document, filtrables par phase, avec copie. Une seule langue à la fois, celle du sélecteur : en anglais la formulation exacte à prononcer, en français sa traduction.
 - **10 essentiels** — la checklist de clôture, cochable, l'état est conservé localement.
-- **Recherche ⌘K** — sur tout le corps du document et sur les phrases, insensible aux accents.
+- **Antisèche** — la feuille à garder sous les yeux pendant l'entretien : dix blocs, la plage de minutes en repère, un lien vers la section du déroulé correspondante, et un bouton d'impression (le reste de l'interface disparaît à l'impression).
+- **Recherche ⌘K** — sur tout le corps du document et sur les phrases, insensible aux accents. L'antisèche n'y est pas : elle tient sur une page.
 - **FR / EN** — bascule complète : interface et document. Thème clair/sombre.
 
 ## Structure
@@ -27,7 +28,10 @@ npm run dev
 src/
   content/deroule.fr.md     source française (copie de bsport-deroule-complet.md)
   content/deroule.en.md     traduction anglaise, même structure
+  content/antiseche.fr.md   l'antisèche (anciennement ANTISECHE.md à la racine)
+  content/antiseche.en.md   sa traduction anglaise, même structure
   lib/markdown.ts           parseur : parties, sections, sous-titres, phrases, essentiels
+  lib/cheatsheet.ts         parseur de l'antisèche : un bloc par titre, minutes comprises
   lib/phases.ts             les 8 phases des 90 minutes (§25.1 du document)
   lib/doc.ts                chargement et mémoïsation par langue
   i18n/strings.ts           chaînes d'interface FR/EN
@@ -40,8 +44,10 @@ Le document markdown reste la source de vérité : le parseur en dérive la navi
 
 Les deux versions doivent garder la même structure (25 sections `## N.`, 6 parties `# PARTIE` / `# PART`, phrases citées en `> *"…"*`) — c'est ce que le parseur reconnaît dans les deux langues.
 
+L'antisèche suit sa propre convention, plus simple : les filets `---` séparent l'en-tête, les blocs et la phrase de clôture ; un bloc commence par un `## `, et la plage de minutes se lit dans son titre quand il est de la forme `## 35–50 · Titre`. Un bloc sans minutes (« Le minutage », « Les dix à ne pas rater ») s'affiche sans repère de temps.
+
 ## Traduction anglaise
 
-`deroule.en.md` est une traduction générée. Sa structure a été vérifiée (25 sections, 6 parties, 59 citations, comme la source) mais le texte n'a pas été relu ligne à ligne.
+`deroule.en.md` est une traduction générée. Sa structure a été vérifiée (25 sections, 6 parties, 59 citations, comme la source) mais le texte n'a pas été relu ligne à ligne. Même chose pour `antiseche.en.md` : 10 blocs et la clôture, comme la version française.
 
 Les phrases à prononcer restent **verbatim en anglais** dans les deux versions du markdown : ce sont les formulations de l'entretien, et le document anglais doit les garder telles quelles. Leur traduction française vit à part, dans `i18n/lineTranslations.ts`, indexée par une clé stable dérivée du texte anglais (`lineKey`). Si une phrase est reformulée dans le markdown, la vue Phrases retombe sur l'anglais — rien ne casse.
