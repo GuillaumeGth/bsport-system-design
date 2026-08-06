@@ -10,11 +10,12 @@ permissions:
   pages: write
   id-token: write
 
-# Un seul déploiement à la fois ; les pushes qui s'enchaînent ne s'annulent pas
-# entre eux, le dernier gagne.
+# Un seul déploiement à la fois. Les runs dépassés sont annulés tout de suite :
+# les laisser aller jusqu'à la deployment ne sert qu'à les faire supplanter par
+# le suivant, ce qui remplit la file d'attente de Pages pour rien.
 concurrency:
   group: pages
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -45,3 +46,7 @@ jobs:
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
+        with:
+          # L'artefact pèse ~76 Mo (l'audio dans public/) : dix minutes ne
+          # suffisent pas toujours quand la file de Pages est chargée.
+          timeout: 1800000
