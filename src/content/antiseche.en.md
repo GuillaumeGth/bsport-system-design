@@ -83,7 +83,7 @@
   - **a state machine nobody named** — 2ⁿ combinations, `isFull && isBooked` representable, therefore reachable → discriminated union
   - **the call site's context leaks** into a shared component (`compact`, `inModal`) → slots. The test: add the waitlist button on one screen **without touching the card**
   - **which combinations are legal is written nowhere** — not in the types, not in the tests
-  - cross-cutting (theme, locale, tenant) = context · a genuinely closed set = `density`, not a flag
+  - cross-cutting (theme, locale, tenant) = React context · a genuinely closed set = `density`, not a flag
   - *"Twenty-five booleans is a state machine nobody named, plus every call site's context leaking into a shared component."*
 - **Ivalua**: contracts · declared extension points · versioning/migration · DX for non-developers
 - *"The first lever on re-renders isn't memoization, it's state structure."*
@@ -92,7 +92,7 @@
 
 ## 25–35 · Data & contract
 
-**4 contexts:** Catalog (who/what/where) · Scheduling (when) · Booking (who shows up) · Billing (who pays)
+**4 contexts** (DDD bounded contexts, nothing to do with React context) **:** Catalog (who/what/where) · Scheduling (when) · Booking (who shows up) · Billing (who pays)
 → *"a screen usually spans several of them — that's where waterfalls and over-fetching come from"*
 
 **Scheduling:** ClassTemplate (the rule) vs **Session** (a dated occurrence with a stable identity) → **materialize over a rolling horizon**. A rule that changes = *"the edit-this-event / all-events / all-following problem from Google Calendar"* → the back-office **asks**, the member app **notifies**.

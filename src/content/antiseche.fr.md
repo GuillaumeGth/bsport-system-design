@@ -83,7 +83,7 @@
   - **une machine à états que personne n'a nommée** — 2ⁿ combinaisons, `isFull && isBooked` représentable donc atteignable → union discriminée
   - **le contexte de l'appelant fuit** dans un composant partagé (`compact`, `inModal`) → slots. Test : ajouter le bouton waitlist sur un seul écran **sans toucher la carte**
   - **quelles combinaisons sont légales n'est écrit nulle part** — ni dans les types, ni dans les tests
-  - transverse (thème, locale, tenant) = contexte · variante réellement fermée = `density`, pas un drapeau
+  - transverse (thème, locale, tenant) = React context · variante réellement fermée = `density`, pas un drapeau
   - *"Twenty-five booleans is a state machine nobody named, plus every call site's context leaking into a shared component."*
 - **Ivalua** : contrats · points d'extension déclarés · versioning/migration · DX pour non-développeurs
 - *"The first lever on re-renders isn't memoization, it's state structure."*
@@ -92,7 +92,7 @@
 
 ## 25–35 · Données & contrat
 
-**4 contextes :** Catalog (qui/quoi/où) · Scheduling (quand) · Booking (qui vient) · Billing (qui paie)
+**4 contextes** (bounded contexts DDD, rien à voir avec le React context) **:** Catalog (qui/quoi/où) · Scheduling (quand) · Booking (qui vient) · Billing (qui paie)
 → *"a screen usually spans several of them — that's where waterfalls and over-fetching come from"*
 
 **Scheduling :** ClassTemplate (règle) vs **Session** (occurrence datée, identité stable) → **matérialiser sur horizon glissant**. Règle qui change = *"the edit-this-event / all-events / all-following problem from Google Calendar"* → le back-office **demande**, l'app membre **notifie**.
