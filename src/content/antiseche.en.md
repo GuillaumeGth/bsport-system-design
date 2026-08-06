@@ -74,8 +74,17 @@
 **The flow (tell it in one breath):** *"The user clicks. The component doesn't call the API — it dispatches a mutation. The mutation layer generates an idempotency key, applies an optimistic update, and fires the request. On success it writes the response into the cache and invalidates related keys. On a business failure it rolls back and surfaces a typed reason. On a network failure it retries with the same key. Meanwhile the real-time channel may push an update for that same session, and reconciliation has to apply it without clobbering the in-flight optimistic change."*
 
 **Components:** SchedulePage · Filters · List · **ClassSlotCard** · BookingFlow · **SeatSelector** · WaitlistButton · MembershipBadge
-- container/presentational = **stability** (the API changes, the card doesn't)
-- 25 boolean props = an alarm bell → **composition**
+- container/presentational = **stability** — two rates of change: the API contract (the backend's schedule) and the visual grammar (the design team's). In one file, every backend release ends up touching the pixels
+  - **the boundary test: moving from polling to SSE must not change a single line of the card**
+  - along the way: tests on fixtures · web/mobile sharing · the same card in the list, in search, in the modal
+  - not the 2015 `containers/` folder: colocate, let data in at the route boundary, **keep the leaves dumb**
+  - *"I split on rate of change: the API contract moves on the backend's schedule, the card's visual grammar moves on the design team's."*
+- 25 boolean props = an alarm bell → **composition**, for three reasons worth naming separately
+  - **a state machine nobody named** — 2ⁿ combinations, `isFull && isBooked` representable, therefore reachable → discriminated union
+  - **the call site's context leaks** into a shared component (`compact`, `inModal`) → slots. The test: add the waitlist button on one screen **without touching the card**
+  - **which combinations are legal is written nowhere** — not in the types, not in the tests
+  - cross-cutting (theme, locale, tenant) = context · a genuinely closed set = `density`, not a flag
+  - *"Twenty-five booleans is a state machine nobody named, plus every call site's context leaking into a shared component."*
 - **Ivalua**: contracts · declared extension points · versioning/migration · DX for non-developers
 - *"The first lever on re-renders isn't memoization, it's state structure."*
 

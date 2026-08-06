@@ -74,8 +74,17 @@
 **Le flux (à raconter d'un trait) :** *"The user clicks. The component doesn't call the API — it dispatches a mutation. The mutation layer generates an idempotency key, applies an optimistic update, and fires the request. On success it writes the response into the cache and invalidates related keys. On a business failure it rolls back and surfaces a typed reason. On a network failure it retries with the same key. Meanwhile the real-time channel may push an update for that same session, and reconciliation has to apply it without clobbering the in-flight optimistic change."*
 
 **Composants :** SchedulePage · Filters · List · **ClassSlotCard** · BookingFlow · **SeatSelector** · WaitlistButton · MembershipBadge
-- conteneur/présentationnel = **stabilité** (l'API change, la carte ne bouge pas)
-- 25 props booléennes = alarme → **composition**
+- conteneur/présentationnel = **stabilité** — deux rythmes de changement : le contrat d'API (calendrier du backend) et la grammaire visuelle (calendrier du design). Dans un même fichier, chaque release backend vient toucher les pixels
+  - **test de la frontière : passer du polling à SSE ne doit pas changer une ligne de la carte**
+  - au passage : test sur fixtures · partage web/mobile · même carte dans la liste, la recherche, la modale
+  - pas les dossiers `containers/` de 2015 : colocaliser, faire entrer la donnée à la frontière de la route, **garder les feuilles muettes**
+  - *"I split on rate of change: the API contract moves on the backend's schedule, the card's visual grammar moves on the design team's."*
+- 25 props booléennes = alarme → **composition**, pour trois raisons à nommer séparément
+  - **une machine à états que personne n'a nommée** — 2ⁿ combinaisons, `isFull && isBooked` représentable donc atteignable → union discriminée
+  - **le contexte de l'appelant fuit** dans un composant partagé (`compact`, `inModal`) → slots. Test : ajouter le bouton waitlist sur un seul écran **sans toucher la carte**
+  - **quelles combinaisons sont légales n'est écrit nulle part** — ni dans les types, ni dans les tests
+  - transverse (thème, locale, tenant) = contexte · variante réellement fermée = `density`, pas un drapeau
+  - *"Twenty-five booleans is a state machine nobody named, plus every call site's context leaking into a shared component."*
 - **Ivalua** : contrats · points d'extension déclarés · versioning/migration · DX pour non-développeurs
 - *"The first lever on re-renders isn't memoization, it's state structure."*
 
