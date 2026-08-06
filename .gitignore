@@ -23,3 +23,6 @@ dist-ssr
 *.sln
 *.sw?
 /audio/
+
+# Fichiers de travail des sessions d'agent
+.tmp/
